@@ -15,11 +15,9 @@ void setup() {
 
   initDisplay();
   bootScreen();
-
-  initSensors();
-
   drawStaticDashboard();
 
+  initSensors();
   initTelemetry();
 }
 

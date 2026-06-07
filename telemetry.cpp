@@ -1,6 +1,7 @@
 #include "telemetry.h"
 #include "secrets.h"
 #include "sensors.h"
+#include "display.h"
 
 #include <WiFi.h>
 #include <AdafruitIO_WiFi.h>
@@ -28,16 +29,28 @@ void initTelemetry() {
 
   io.connect();
 
-  while (io.status() < AIO_CONNECTED) {
+  int frame = 0;
+  unsigned long start = millis();
+  const unsigned long timeout = 20000; // 20 seconds
+
+  while (io.status() < AIO_CONNECTED && millis() - start < timeout) {
     Serial.print(".");
-    delay(500);
+    drawWaitStatus("Connecting to Adafruit IO", frame++);
+    delay(250);
   }
 
   wifiConnected = WiFi.status() == WL_CONNECTED;
   ioConnected = io.status() >= AIO_CONNECTED;
 
-  Serial.println();
-  Serial.println(io.statusText());
+  if (ioConnected) {
+    drawWaitStatus("Adafruit IO connected", frame++);
+    Serial.println("\nAdafruit IO connected");
+  } else {
+    drawWaitStatus("Adafruit IO timeout", frame++);
+    Serial.println("\nAdafruit IO timeout");
+  }
+
+  delay(800);
 }
 
 void runTelemetry() {

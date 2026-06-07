@@ -28,3 +28,5 @@ void drawStatusBar(
 void drawSoil(int raw, float voltage);
 
 void drawMarquee();
+
+void drawWaitStatus(const char* label, int frame);

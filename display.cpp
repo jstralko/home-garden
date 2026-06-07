@@ -210,7 +210,7 @@ void drawMarquee() {
 
     tft.setCursor(
         marqueeX,
-        122
+        120
     );
 
     tft.print(marqueeText);
@@ -223,4 +223,18 @@ void drawMarquee() {
     if (marqueeX < -width) {
         marqueeX = 240;
     }
+}
+
+void drawWaitStatus(const char* label, int frame) {
+  const char spinner[] = "|/-\\";
+
+  tft.fillRect(0, 118, 240, 17, ST77XX_BLACK);
+
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_CYAN);
+
+  tft.setCursor(6, 122);
+  tft.print(spinner[frame % 4]);
+  tft.print(" ");
+  tft.print(label);
 }
