@@ -228,12 +228,12 @@ void drawMarquee() {
 void drawWaitStatus(const char* label, int frame) {
   const char spinner[] = "|/-\\";
 
-  tft.fillRect(0, 118, 240, 17, ST77XX_BLACK);
+  drawStaticDashboard();
 
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_CYAN);
 
-  tft.setCursor(6, 122);
+  tft.setCursor(60, 60);
   tft.print(spinner[frame % 4]);
   tft.print(" ");
   tft.print(label);

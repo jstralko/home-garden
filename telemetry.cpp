@@ -35,8 +35,8 @@ void initTelemetry() {
 
   while (io.status() < AIO_CONNECTED && millis() - start < timeout) {
     Serial.print(".");
-    drawWaitStatus("Connecting to Adafruit IO", frame++);
-    delay(250);
+    drawWaitStatus("Connecting", frame++);
+    delay(150);
   }
 
   wifiConnected = WiFi.status() == WL_CONNECTED;
