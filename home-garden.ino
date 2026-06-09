@@ -8,13 +8,9 @@
 
 unsigned long lastSensorRead = 0;
 unsigned long lastMarqueeMove = 0;
-unsigned long lastTelemetryRun = 0;
 
 const unsigned long sensorInterval =
   LOW_POWER_MODE ? SENSOR_INTERVAL_LOW_POWER : SENSOR_INTERVAL_NORMAL;
-
-const unsigned long telemetryRunInterval =
-  LOW_POWER_MODE ? TELEMETRY_RUN_INTERVAL_LOW_POWER : TELEMETRY_RUN_INTERVAL_NORMAL;
 
 const unsigned long marqueeInterval =
   LOW_POWER_MODE ? 0 : 35;
@@ -67,7 +63,6 @@ void setup() {
     enterDeepSleep();
   }
 
-  lastTelemetryRun = millis();
   drawStaticDashboard();
   refreshDashboard();
 
@@ -80,13 +75,9 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  if (now - lastTelemetryRun >= telemetryRunInterval) {
-    lastTelemetryRun = now;
-    runTelemetry();
-  }
-
   if (now - lastSensorRead >= sensorInterval) {
     lastSensorRead = now;
+    runTelemetry();
     readSensors();
 
     refreshDashboard();

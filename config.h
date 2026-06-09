@@ -11,8 +11,5 @@ const unsigned long TELEMETRY_CONNECT_TIMEOUT_NORMAL = 20000;
 const unsigned long SENSOR_INTERVAL_NORMAL = 3000;
 const unsigned long SENSOR_INTERVAL_LOW_POWER = 60000;
 
-const unsigned long TELEMETRY_RUN_INTERVAL_NORMAL = 1000;
-const unsigned long TELEMETRY_RUN_INTERVAL_LOW_POWER = 5000;
-
 const unsigned long UPLOAD_INTERVAL_NORMAL = 30000;
 const unsigned long UPLOAD_INTERVAL_LOW_POWER = 300000; // 5 min
