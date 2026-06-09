@@ -18,7 +18,8 @@ float gas = 0.0;
 
 float lux = 0.0;
 
-const int SOIL_PIN = A0;
+//A0 - need to resolder 
+const int SOIL_PIN = A1;
 
 int soilRaw = 0;
 float soilVoltage = 0.0;
@@ -62,7 +63,7 @@ void readSensors() {
     humidity = bme.humidity;
     pressure = bme.pressure / 100.0;
     gas = bme.gas_resistance / 1000.0;
-
+ 
     Serial.print("Temperature: ");
     Serial.print(currentTempF);
     Serial.println(" F");
@@ -81,4 +82,17 @@ void readSensors() {
 
   soilRaw = analogRead(SOIL_PIN);
   soilVoltage = (soilRaw / 4095.0) * 3.3;
+
+  Serial.print("soilVoltage:");
+  Serial.println(soilVoltage);
+
+  updateSoilStatus();
+}
+
+void updateSoilStatus() {
+  soilFound =
+    (soilVoltage > 0.05) &&
+    (soilVoltage < 3.25);
+
+  soilFound = false;
 }

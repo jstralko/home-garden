@@ -1,4 +1,5 @@
 #include "display.h"
+#include "sensors.h"
 
 #include <SPI.h>
 
@@ -184,7 +185,7 @@ void drawSoil(int raw, float voltage) {
   tft.fillRect(120, 95, 120, 15, ST77XX_BLACK);
 
   tft.setTextSize(1);
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(soilFound ? ST77XX_GREEN : ST77XX_RED);
 
   tft.setCursor(120, 95);
   tft.print("Soil: ");

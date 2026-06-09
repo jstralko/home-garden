@@ -23,3 +23,4 @@ extern bool soilFound;
 
 void initSensors();
 void readSensors();
+void updateSoilStatus();
