@@ -12,6 +12,8 @@ void initDisplay();
 // Screens
 void bootScreen();
 void drawStaticDashboard();
+void setDisplayPower(bool on);
+void sleepDisplay();
 
 // Widgets
 void drawTemperature(float tempF, float tempC);

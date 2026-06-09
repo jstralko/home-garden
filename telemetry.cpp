@@ -2,6 +2,7 @@
 #include "secrets.h"
 #include "sensors.h"
 #include "display.h"
+#include "config.h"
 
 #include <WiFi.h>
 #include <AdafruitIO_WiFi.h>
@@ -22,16 +23,18 @@ bool wifiConnected = false;
 bool ioConnected = false;
 
 static unsigned long lastUpload = 0;
-static const unsigned long uploadInterval = 30000; // 30 seconds
+static const unsigned long uploadInterval =
+  LOW_POWER_MODE ? UPLOAD_INTERVAL_LOW_POWER : UPLOAD_INTERVAL_NORMAL;
 
-void initTelemetry() {
+bool initTelemetry() {
   Serial.print("Connecting to Adafruit IO");
 
   io.connect();
 
   int frame = 0;
   unsigned long start = millis();
-  const unsigned long timeout = 20000; // 20 seconds
+  const unsigned long timeout =
+    DEEP_SLEEP_MODE ? TELEMETRY_CONNECT_TIMEOUT_DEEP_SLEEP : TELEMETRY_CONNECT_TIMEOUT_NORMAL;
 
   while (io.status() < AIO_CONNECTED && millis() - start < timeout) {
     Serial.print(".");
@@ -51,6 +54,7 @@ void initTelemetry() {
   }
 
   delay(800);
+  return ioConnected;
 }
 
 void runTelemetry() {
@@ -72,20 +76,36 @@ void uploadTelemetryIfDue() {
   }
 
   lastUpload = now;
+  uploadTelemetryNow();
+}
 
-  temperatureFeed->save(currentTempF);
-  humidityFeed->save(humidity);
-  pressureFeed->save(pressure);
-  gasFeed->save(gas);
-  luxFeed->save(lux);
-
-  if (fuelGaugeFound) {
-    batteryVoltageFeed->save(batteryVoltage);
-    batteryPercentFeed->save(batteryPercent);
+bool uploadTelemetryNow() {
+  if (io.status() < AIO_CONNECTED) {
+    return false;
   }
 
-  soilRawFeed->save(soilRaw);
-  soilVoltageFeed->save(soilVoltage);
+  bool uploaded = true;
+  uploaded &= temperatureFeed->save(currentTempF);
+  uploaded &= humidityFeed->save(humidity);
+  uploaded &= pressureFeed->save(pressure);
+  uploaded &= gasFeed->save(gas);
+  uploaded &= luxFeed->save(lux);
 
-  Serial.println("Uploaded feeds to Adafruit IO");
+  if (fuelGaugeFound) {
+    uploaded &= batteryVoltageFeed->save(batteryVoltage);
+    uploaded &= batteryPercentFeed->save(batteryPercent);
+  }
+
+  uploaded &= soilRawFeed->save(soilRaw);
+  uploaded &= soilVoltageFeed->save(soilVoltage);
+
+  Serial.println(uploaded ? "Uploaded feeds to Adafruit IO" : "Telemetry upload failed");
+  return uploaded;
+}
+
+void shutdownTelemetry() {
+  io.wifi_disconnect();
+  WiFi.mode(WIFI_OFF);
+  wifiConnected = false;
+  ioConnected = false;
 }

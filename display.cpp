@@ -1,5 +1,6 @@
 #include "display.h"
 #include "sensors.h"
+#include "config.h"
 
 #include <SPI.h>
 
@@ -9,7 +10,7 @@ Adafruit_ST7789 tft =
 
 static int marqueeX = 240;
 
-static String marqueeText =
+static const char marqueeText[] =
 "  GARDEN NODE ONLINE  *  SUNLIGHT SENSOR ONLINE  *  PLANTS ARE BEING OBSERVED  *  ";
 
 void initDisplay() {
@@ -19,6 +20,7 @@ void initDisplay() {
 
     tft.init(135, 240);
     tft.setRotation(3);
+    tft.setTextWrap(false);
 }
 
 void bootScreen() {
@@ -37,7 +39,27 @@ void bootScreen() {
     tft.setCursor(48,52);
     tft.println("Environmental Hub");
 
+    if (DEEP_SLEEP_MODE) {
+        tft.setTextColor(ST77XX_YELLOW);
+        tft.setCursor(84,68);
+        tft.println("DEEP SLEEP");
+    } else if (LOW_POWER_MODE) {
+        tft.setTextColor(ST77XX_YELLOW);
+        tft.setCursor(90,68);
+        tft.println("LOW POWER");
+    }
+
     delay(1500);
+}
+
+void setDisplayPower(bool on) {
+  digitalWrite(TFT_BACKLITE, on ? HIGH : LOW);
+}
+
+void sleepDisplay() {
+  setDisplayPower(false);
+  tft.enableDisplay(false);
+  tft.enableSleep(true);
 }
 
 void drawStaticDashboard() {
@@ -218,11 +240,10 @@ void drawMarquee() {
 
     marqueeX -= 2;
 
-    int width =
-        marqueeText.length() * 6;
+    const int width = (sizeof(marqueeText) - 1) * 6;
 
-    if (marqueeX < -width) {
-        marqueeX = 240;
+    if (marqueeX <= -width) {
+        marqueeX = tft.width();
     }
 }
 

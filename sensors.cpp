@@ -96,3 +96,16 @@ void updateSoilStatus() {
 
   soilFound = false;
 }
+
+void shutdownSensors() {
+  if (vemlFound) {
+    veml.enable(false);
+  }
+
+  if (fuelGaugeFound) {
+    maxlipo.enableSleep(true);
+    maxlipo.sleep(true);
+  }
+
+  Wire.end();
+}

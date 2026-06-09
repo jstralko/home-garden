@@ -5,6 +5,8 @@
 extern bool wifiConnected;
 extern bool ioConnected;
 
-void initTelemetry();
+bool initTelemetry();
 void runTelemetry();
 void uploadTelemetryIfDue();
+bool uploadTelemetryNow();
+void shutdownTelemetry();

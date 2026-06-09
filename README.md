@@ -200,15 +200,32 @@ Install via Arduino Library Manager:
 Current:
 
 ```text
-USB Powered
+USB or LiPo battery
+Timer-based deep sleep
+WiFi disabled between telemetry uploads
+TFT and supported sensors placed in sleep mode
 ```
+
+Deep sleep is configured in `config.h`:
+
+```cpp
+#define DEEP_SLEEP_MODE true
+
+const uint64_t DEEP_SLEEP_INTERVAL_US =
+  5ULL * 60ULL * 1000000ULL;
+```
+
+Each wake reads the sensors, connects to Adafruit IO, uploads one sample,
+disables WiFi, and returns to deep sleep.
+
+The VH400 must be powered through a switched supply or suitable GPIO/load
+switch to eliminate its current draw during deep sleep. Connecting it directly
+to 3.3 V leaves it powered while the ESP32 sleeps.
 
 Planned:
 
 ```text
-LiPo Battery
 INA260 Power Monitoring
-Deep Sleep Support
 Solar Charging
 ```
 
@@ -230,7 +247,6 @@ Solar Charging
 ### Long Term
 
 * Battery mode
-* Deep sleep
 * Solar power
 * React dashboard
 * Garden Mission Control web interface
@@ -238,4 +254,3 @@ Solar Charging
 ## License
 
 Personal project for environmental monitoring and embedded systems experimentation.
-
