@@ -203,17 +203,20 @@ void drawLux(float lux) {
     }
 }
 
-void drawSoil(int raw, float voltage) {
-  tft.fillRect(120, 95, 120, 15, ST77XX_BLACK);
+void drawSoil(int raw, float voltage, float percent) {
+  tft.fillRect(120, 95, 120, 21, ST77XX_BLACK);
 
   tft.setTextSize(1);
   tft.setTextColor(soilFound ? ST77XX_GREEN : ST77XX_RED);
 
   tft.setCursor(120, 95);
   tft.print("Soil: ");
-  tft.print(raw);
+  tft.print(percent, 0);
+  tft.print("%");
 
-  tft.setCursor(185, 95);
+  tft.setCursor(120, 106);
+  tft.print(raw);
+  tft.print(" ");
   tft.print(voltage, 2);
   tft.print("V");
 }

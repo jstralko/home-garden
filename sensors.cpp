@@ -23,6 +23,7 @@ const int SOIL_PIN = A1;
 
 int soilRaw = 0;
 float soilVoltage = 0.0;
+float soilPercent = 0.0;
 
 float batteryVoltage = 0.0;
 float batteryPercent = 0.0;
@@ -82,9 +83,12 @@ void readSensors() {
 
   soilRaw = analogRead(SOIL_PIN);
   soilVoltage = (soilRaw / 4095.0) * 3.3;
+  soilPercent = constrain(((soilVoltage - 0.5) / (2.0 - 0.5)) * 100.0, 0.0, 100.0);
 
   Serial.print("soilVoltage:");
   Serial.println(soilVoltage);
+  Serial.print("soilPercent:");
+  Serial.println(soilPercent);
 
   updateSoilStatus();
 }
@@ -93,8 +97,6 @@ void updateSoilStatus() {
   soilFound =
     (soilVoltage > 0.05) &&
     (soilVoltage < 3.25);
-
-  soilFound = false;
 }
 
 void shutdownSensors() {

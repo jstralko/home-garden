@@ -27,7 +27,7 @@ void drawStatusBar(
     bool wifiConnected,
     bool ioConnected
 );
-void drawSoil(int raw, float voltage);
+void drawSoil(int raw, float voltage, float percent);
 
 void drawMarquee();
 

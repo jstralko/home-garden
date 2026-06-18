@@ -18,6 +18,7 @@ AdafruitIO_Feed *gasFeed            = io.feed("gas");
 AdafruitIO_Feed *luxFeed            = io.feed("lux");
 AdafruitIO_Feed *soilRawFeed        = io.feed("soil_raw");
 AdafruitIO_Feed *soilVoltageFeed    = io.feed("soil_voltage");
+AdafruitIO_Feed *soilPercentFeed    = io.feed("soil_percent");
 
 bool wifiConnected = false;
 bool ioConnected = false;
@@ -98,6 +99,7 @@ bool uploadTelemetryNow() {
 
   uploaded &= soilRawFeed->save(soilRaw);
   uploaded &= soilVoltageFeed->save(soilVoltage);
+  uploaded &= soilPercentFeed->save(soilPercent);
 
   Serial.println(uploaded ? "Uploaded feeds to Adafruit IO" : "Telemetry upload failed");
   return uploaded;

@@ -19,7 +19,7 @@ void refreshDashboard() {
   drawTemperature(currentTempF, currentTempC);
   drawBatteryInfo(batteryVoltage, batteryPercent);
   drawLux(lux);
-  drawSoil(soilRaw, soilVoltage);
+  drawSoil(soilRaw, soilVoltage, soilPercent);
   drawStatusBar(bmeFound, vemlFound, soilFound, fuelGaugeFound, wifiConnected, ioConnected);
 }
 

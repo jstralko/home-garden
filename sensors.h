@@ -12,6 +12,7 @@ extern float lux;
 
 extern int soilRaw;
 extern float soilVoltage;
+extern float soilPercent;
 
 extern float batteryVoltage;
 extern float batteryPercent;

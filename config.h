@@ -1,7 +1,7 @@
 #pragma once
 
-#define DEEP_SLEEP_MODE true
-#define LOW_POWER_MODE true
+#define DEEP_SLEEP_MODE false
+#define LOW_POWER_MODE false
 
 const uint64_t DEEP_SLEEP_INTERVAL_US = 5ULL * 60ULL * 1000000ULL;
 const unsigned long DEEP_SLEEP_DISPLAY_TIME = 2000;

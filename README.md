@@ -137,6 +137,7 @@ gas
 lux
 soil_raw
 soil_voltage
+soil_percent
 battery_voltage
 battery_percent
 ```
@@ -144,7 +145,6 @@ battery_percent
 Planned:
 
 ```text
-soil_percent
 system_voltage
 system_current
 system_power
@@ -233,8 +233,6 @@ Solar Charging
 
 ### Near Term
 
-* Soil moisture calibration
-* Soil percentage feed
 * Improved dashboard visuals
 
 ### Medium Term
