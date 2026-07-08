@@ -27,13 +27,13 @@ type LatestFeedsResponse = {
   feeds: FeedState;
 };
 
-type LuxPoint = {
+type HistoryPoint = {
   value: number;
   updatedAt: string;
 };
 
-type LuxDayResponse = {
-  points: LuxPoint[];
+type DayHistoryResponse = {
+  points: HistoryPoint[];
 };
 
 type ChartPoint = {
@@ -126,20 +126,20 @@ function todayRange(): { start: Date; end: Date } {
   return { start, end };
 }
 
-async function fetchLuxDay(): Promise<LuxPoint[]> {
+async function fetchDayHistory(endpoint: string, errorLabel: string): Promise<HistoryPoint[]> {
   const { start, end } = todayRange();
   const params = new URLSearchParams({
     start: start.toISOString(),
     end: end.toISOString()
   });
-  const response = await fetch(`/api/feeds/lux/day?${params.toString()}`);
+  const response = await fetch(`${endpoint}?${params.toString()}`);
 
   if (!response.ok) {
     const data = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(data?.error ?? `Lux history failed: ${response.status}`);
+    throw new Error(data?.error ?? `${errorLabel} history failed: ${response.status}`);
   }
 
-  const data = await response.json() as LuxDayResponse;
+  const data = await response.json() as DayHistoryResponse;
   return data.points;
 }
 
@@ -229,32 +229,60 @@ function Metric({ icon, label, value, detail }: { icon: ReactNode; label: string
   );
 }
 
-function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | null }) {
+function DayLineChart({
+  ariaLabel,
+  averageLabel,
+  emptyText,
+  error,
+  fillId,
+  formatValue,
+  heading,
+  areaDivisor,
+  points,
+  statLabel,
+  strokeClass,
+  subheading,
+  unit
+}: {
+  ariaLabel: string;
+  averageLabel: string;
+  emptyText: string;
+  error: string | null;
+  fillId: string;
+  formatValue: (value: number | null) => string;
+  heading: string;
+  areaDivisor: number;
+  points: HistoryPoint[];
+  statLabel: string;
+  strokeClass: string;
+  subheading: string;
+  unit: string;
+}) {
   const { start, end } = useMemo(todayRange, []);
-  const chart = useMemo(() => buildLuxChart(points, start, end), [points, start, end]);
+  const chart = useMemo(() => buildDayChart(points, start, end), [points, start, end]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePoint = activeIndex === null ? null : chart.points[activeIndex] ?? null;
 
   return (
-    <section className="lux-chart-section" aria-label="Today's lux history">
+    <section className="day-chart-section" aria-label={ariaLabel}>
       <div className="chart-heading">
         <div>
-          <div className="metric-label">Sunlight Today</div>
-          <h2>Lux Through The Day</h2>
+          <div className="metric-label">{subheading}</div>
+          <h2>{heading}</h2>
         </div>
         <div className="chart-stats">
-          <span>Peak {formatLux(chart.peak)} lux</span>
-          <span>Avg {formatLux(chart.average)} lux</span>
-          <span>{chart.luxHours.toFixed(1)} klux-h</span>
+          <span>Peak {formatValue(chart.peak)}{unit}</span>
+          <span>{averageLabel} {formatValue(chart.average)}{unit}</span>
+          <span>{(chart.areaHours / areaDivisor).toFixed(1)} {statLabel}</span>
         </div>
       </div>
 
       <div className="chart-frame">
-        <svg className="lux-chart" viewBox="0 0 760 260" role="img" aria-label="Line chart of today's lux readings">
+        <svg className={`day-chart ${strokeClass}`} viewBox="0 0 760 260" role="img" aria-label={ariaLabel}>
           <defs>
-            <linearGradient id="lux-fill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#ffe34e" stopOpacity="0.42" />
-              <stop offset="100%" stopColor="#ffe34e" stopOpacity="0.02" />
+            <linearGradient id={fillId} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-color)" stopOpacity="0.42" />
+              <stop offset="100%" stopColor="var(--chart-color)" stopOpacity="0.02" />
             </linearGradient>
           </defs>
           <g className="chart-grid">
@@ -273,15 +301,15 @@ function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | nu
               </g>
             ))}
           </g>
-          {chart.areaPath && <path className="lux-area" d={chart.areaPath} />}
-          {chart.linePath && <path className="lux-line" d={chart.linePath} />}
+          {chart.areaPath && <path className={`chart-area ${strokeClass}`} d={chart.areaPath} style={{ fill: `url(#${fillId})` }} />}
+          {chart.linePath && <path className={`chart-line ${strokeClass}`} d={chart.linePath} />}
           {activePoint && (
             <g className="chart-tooltip-layer" pointerEvents="none">
               <line className="chart-crosshair" x1={activePoint.x} x2={activePoint.x} y1="22" y2="218" />
-              <circle className="lux-active-dot" cx={activePoint.x} cy={activePoint.y} r="5" />
+              <circle className={`chart-active-dot ${strokeClass}`} cx={activePoint.x} cy={activePoint.y} r="5" />
               <g transform={`translate(${tooltipX(activePoint.x)} ${tooltipY(activePoint.y)})`}>
                 <rect className="chart-tooltip-box" width="124" height="52" rx="6" />
-                <text className="chart-tooltip-value" x="10" y="21">{formatLux(activePoint.value)} lux</text>
+                <text className="chart-tooltip-value" x="10" y="21">{formatValue(activePoint.value)}{unit}</text>
                 <text className="chart-tooltip-time" x="10" y="39">{activePoint.label}</text>
               </g>
             </g>
@@ -289,7 +317,7 @@ function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | nu
           {chart.points.map((point, index) => (
             <circle
               key={`hit-${point.x}-${point.y}`}
-              className="lux-hit-target"
+              className="chart-hit-target"
               cx={point.x}
               cy={point.y}
               r="11"
@@ -301,7 +329,7 @@ function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | nu
             />
           ))}
           {!chart.linePath && (
-            <text className="chart-empty" x="380" y="132">{error ?? "No lux samples today"}</text>
+            <text className="chart-empty" x="380" y="132">{error ?? emptyText}</text>
           )}
         </svg>
       </div>
@@ -309,7 +337,7 @@ function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | nu
   );
 }
 
-function buildLuxChart(points: LuxPoint[], start: Date, end: Date) {
+function buildDayChart(points: HistoryPoint[], start: Date, end: Date) {
   const width = 760;
   const height = 260;
   const left = 52;
@@ -345,13 +373,13 @@ function buildLuxChart(points: LuxPoint[], start: Date, end: Date) {
     : "";
   const average = sorted.length === 0 ? null : sorted.reduce((sum, point) => sum + point.value, 0) / sorted.length;
 
-  let luxHours = 0;
+  let areaHours = 0;
   for (let index = 1; index < sorted.length; index += 1) {
     const previous = sorted[index - 1];
     const current = sorted[index];
     const hours = (current.time - previous.time) / (1000 * 60 * 60);
     if (hours > 0 && hours < 3) {
-      luxHours += ((previous.value + current.value) / 2) * hours / 1000;
+      areaHours += ((previous.value + current.value) / 2) * hours;
     }
   }
 
@@ -372,7 +400,7 @@ function buildLuxChart(points: LuxPoint[], start: Date, end: Date) {
     areaPath,
     average,
     linePath,
-    luxHours,
+    areaHours,
     peak,
     points: chartPoints,
     xTicks,
@@ -421,10 +449,12 @@ function tooltipY(y: number): number {
 
 export default function App() {
   const [feeds, setFeeds] = useState<FeedState>(buildInitialFeeds);
-  const [luxPoints, setLuxPoints] = useState<LuxPoint[]>([]);
+  const [luxPoints, setLuxPoints] = useState<HistoryPoint[]>([]);
+  const [soilPoints, setSoilPoints] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [luxError, setLuxError] = useState<string | null>(null);
+  const [soilError, setSoilError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -432,6 +462,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setLuxError(null);
+    setSoilError(null);
 
     try {
       const results = await fetchLatestFeeds();
@@ -446,11 +477,19 @@ export default function App() {
     }
 
     try {
-      const luxHistory = await fetchLuxDay();
+      const luxHistory = await fetchDayHistory("/api/feeds/lux/day", "Lux");
       setLuxPoints(luxHistory);
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Lux history failed";
       setLuxError(message);
+    }
+
+    try {
+      const soilHistory = await fetchDayHistory("/api/feeds/soil-percent/day", "Soil moisture");
+      setSoilPoints(soilHistory);
+    } catch (fetchError) {
+      const message = fetchError instanceof Error ? fetchError.message : "Soil moisture history failed";
+      setSoilError(message);
     } finally {
       setLoading(false);
     }
@@ -532,7 +571,38 @@ export default function App() {
         </section>
       </div>
 
-      <LuxDayChart points={luxPoints} error={luxError} />
+      <div className="charts-layout">
+        <DayLineChart
+          ariaLabel="Line chart of today's lux readings"
+          averageLabel="Avg"
+          emptyText="No lux samples today"
+          error={luxError}
+          fillId="lux-fill"
+          formatValue={formatLux}
+          heading="Lux Through The Day"
+          areaDivisor={1000}
+          points={luxPoints}
+          statLabel="klux-h"
+          strokeClass="sun-chart"
+          subheading="Sunlight Today"
+          unit=" lux"
+        />
+        <DayLineChart
+          ariaLabel="Line chart of today's soil moisture percentage readings"
+          averageLabel="Avg"
+          emptyText="No soil moisture samples today"
+          error={soilError}
+          fillId="soil-fill"
+          formatValue={(value) => formatFixed(value, 0)}
+          heading="Soil Moisture Through The Day"
+          areaDivisor={1}
+          points={soilPoints}
+          statLabel="%-h"
+          strokeClass="soil-chart"
+          subheading="Soil Today"
+          unit="%"
+        />
+      </div>
 
       <footer className="footer">
         <span>Last refresh: {lastRefresh ? new Date(lastRefresh).toLocaleTimeString() : "--"}</span>

@@ -272,8 +272,14 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.lux-chart-section {
+.charts-layout {
+  display: grid;
+  gap: 20px;
   margin-top: 20px;
+}
+
+.day-chart-section {
+  margin-top: 0;
   padding: 16px;
   border: 1px solid rgba(242, 245, 239, 0.12);
   border-radius: 8px;
@@ -316,12 +322,24 @@ h1 {
   overflow: hidden;
 }
 
-.lux-chart {
+.day-chart {
+  --chart-color: #ffe34e;
+  --chart-accent: #ff9b2d;
   display: block;
   width: 100%;
   height: auto;
   min-height: 220px;
   overflow: visible;
+}
+
+.sun-chart {
+  --chart-color: #ffe34e;
+  --chart-accent: #ff9b2d;
+}
+
+.soil-chart {
+  --chart-color: #44ff56;
+  --chart-accent: #70dc7d;
 }
 
 .chart-grid line {
@@ -344,40 +362,40 @@ h1 {
   text-anchor: middle;
 }
 
-.lux-area {
-  fill: url("#lux-fill");
+.chart-area {
+  color: var(--chart-color);
 }
 
-.lux-line {
+.chart-line {
   fill: none;
-  stroke: #ffe34e;
+  stroke: var(--chart-color);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.1;
-  filter: drop-shadow(0 0 5px rgba(255, 227, 78, 0.28));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--chart-color) 32%, transparent));
 }
 
-.lux-hit-target {
+.chart-hit-target {
   fill: transparent;
   outline: none;
   cursor: crosshair;
 }
 
-.lux-active-dot {
+.chart-active-dot {
   fill: #fff7bf;
-  stroke: #ff9b2d;
+  stroke: var(--chart-accent);
   stroke-width: 2.5;
 }
 
 .chart-crosshair {
-  stroke: rgba(255, 227, 78, 0.42);
+  stroke: color-mix(in srgb, var(--chart-color) 42%, transparent);
   stroke-dasharray: 4 5;
   stroke-width: 1.2;
 }
 
 .chart-tooltip-box {
   fill: rgba(10, 12, 10, 0.94);
-  stroke: rgba(255, 227, 78, 0.36);
+  stroke: color-mix(in srgb, var(--chart-color) 36%, transparent);
   stroke-width: 1;
 }
 

@@ -66,12 +66,13 @@ var feeds = []feedConfig{
 }
 
 type server struct {
-	username string
-	key      string
-	client   *http.Client
-	cacheTTL time.Duration
-	cache    feedCache
-	luxCache luxHistoryCache
+	username  string
+	key       string
+	client    *http.Client
+	cacheTTL  time.Duration
+	cache     feedCache
+	luxCache  luxHistoryCache
+	soilCache luxHistoryCache
 }
 
 type feedCache struct {
@@ -109,6 +110,7 @@ func main() {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/feeds/latest", s.handleLatestFeeds)
 	mux.HandleFunc("GET /api/feeds/lux/day", s.handleLuxDay)
+	mux.HandleFunc("GET /api/feeds/soil-percent/day", s.handleSoilPercentDay)
 	mux.Handle("/", staticHandler(readFrontendDist()))
 
 	addr := ":" + port
@@ -156,6 +158,14 @@ func (s *server) handleLatestFeeds(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleLuxDay(w http.ResponseWriter, r *http.Request) {
+	s.handleFeedHistory(w, r, feedConfig{key: "lux", endpoint: "lux"}, &s.luxCache)
+}
+
+func (s *server) handleSoilPercentDay(w http.ResponseWriter, r *http.Request) {
+	s.handleFeedHistory(w, r, feedConfig{key: "soil_percent", endpoint: "soil-percent"}, &s.soilCache)
+}
+
+func (s *server) handleFeedHistory(w http.ResponseWriter, r *http.Request, feed feedConfig, cache *luxHistoryCache) {
 	if !s.configured() {
 		writeError(w, http.StatusServiceUnavailable, "ADAFRUIT_IO_USERNAME and ADAFRUIT_IO_KEY must be set on the backend")
 		return
@@ -169,7 +179,7 @@ func (s *server) handleLuxDay(w http.ResponseWriter, r *http.Request) {
 
 	startKey := start.Format(time.RFC3339Nano)
 	endKey := end.Format(time.RFC3339Nano)
-	if data, ok := s.cachedLuxHistory(startKey, endKey); ok {
+	if data, ok := s.cachedHistory(cache, startKey, endKey); ok {
 		writeJSON(w, http.StatusOK, data)
 		return
 	}
@@ -177,14 +187,14 @@ func (s *server) handleLuxDay(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 
-	points, err := s.fetchFeedHistory(ctx, feedConfig{key: "lux", endpoint: "lux"}, start, end)
+	points, err := s.fetchFeedHistory(ctx, feed, start, end)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 
 	response := luxDayResponse{Points: points}
-	s.storeCachedLuxHistory(startKey, endKey, response)
+	s.storeCachedHistory(cache, startKey, endKey, response)
 	writeJSON(w, http.StatusOK, response)
 }
 
@@ -211,25 +221,25 @@ func (s *server) storeCachedFeeds(data latestFeedsResponse) {
 	s.cache.expires = time.Now().Add(s.cacheTTL)
 }
 
-func (s *server) cachedLuxHistory(start string, end string) (luxDayResponse, bool) {
-	s.luxCache.mu.Lock()
-	defer s.luxCache.mu.Unlock()
+func (s *server) cachedHistory(cache *luxHistoryCache, start string, end string) (luxDayResponse, bool) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
 
-	if time.Now().After(s.luxCache.expires) || s.luxCache.start != start || s.luxCache.end != end {
+	if time.Now().After(cache.expires) || cache.start != start || cache.end != end {
 		return luxDayResponse{}, false
 	}
 
-	return s.luxCache.data, true
+	return cache.data, true
 }
 
-func (s *server) storeCachedLuxHistory(start string, end string, data luxDayResponse) {
-	s.luxCache.mu.Lock()
-	defer s.luxCache.mu.Unlock()
+func (s *server) storeCachedHistory(cache *luxHistoryCache, start string, end string, data luxDayResponse) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
 
-	s.luxCache.start = start
-	s.luxCache.end = end
-	s.luxCache.data = data
-	s.luxCache.expires = time.Now().Add(s.cacheTTL)
+	cache.start = start
+	cache.end = end
+	cache.data = data
+	cache.expires = time.Now().Add(s.cacheTTL)
 }
 
 func (s *server) fetchFeed(ctx context.Context, feed feedConfig) (feedData, error) {
