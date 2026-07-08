@@ -196,6 +196,12 @@ frontend variable.
 
 ### Render Deployment
 
+Public dashboard:
+
+```text
+https://home-garden-cpb2.onrender.com/
+```
+
 Deploy this repo as a Docker web service. If Render detects it as a native Go
 service, the backend may start without a built `frontend/dist` and `/` will
 return `404`.
