@@ -1,4 +1,6 @@
 secrets.h
+backend/.env
+backend/home-garden-backend
 frontend/.env
 frontend/node_modules/
 frontend/dist/

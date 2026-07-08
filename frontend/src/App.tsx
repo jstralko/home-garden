@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { Battery, Cloud, Leaf, RefreshCw, Settings, Sun, Thermometer, Wifi } from "lucide-react";
+import { Battery, Cloud, Leaf, RefreshCw, Sun, Thermometer, Wifi } from "lucide-react";
 import "./styles.css";
 
 type FeedKey =
@@ -23,9 +23,8 @@ type FeedData = {
 
 type FeedState = Record<FeedKey, FeedData>;
 
-type Credentials = {
-  username: string;
-  key: string;
+type LatestFeedsResponse = {
+  feeds: FeedState;
 };
 
 const FEEDS: FeedKey[] = [
@@ -41,19 +40,6 @@ const FEEDS: FeedKey[] = [
   "battery_percent"
 ];
 
-const FEED_ENDPOINTS: Record<FeedKey, string> = {
-  temperature: "temperature",
-  humidity: "humidity",
-  pressure: "pressure",
-  gas: "gas",
-  lux: "lux",
-  soil_raw: "soil-raw",
-  soil_voltage: "soil-voltage",
-  soil_percent: "soil-percent",
-  battery_voltage: "battery-voltage",
-  battery_percent: "battery-percent"
-};
-
 const EMPTY_FEED: FeedData = {
   value: null,
   updatedAt: null
@@ -68,11 +54,6 @@ function buildInitialFeeds(): FeedState {
     feeds[feed] = EMPTY_FEED;
     return feeds;
   }, {} as FeedState);
-}
-
-function parseNumber(value: unknown): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatFixed(value: number | null, digits: number, fallback = "--"): string {
@@ -106,40 +87,16 @@ function newestTimestamp(feeds: FeedState): string | null {
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
 }
 
-function loadCredentials(): Credentials {
-  return {
-    username:
-      import.meta.env.VITE_ADAFRUIT_IO_USERNAME ||
-      localStorage.getItem("adafruit-io-username") ||
-      "",
-    key:
-      import.meta.env.VITE_ADAFRUIT_IO_KEY ||
-      localStorage.getItem("adafruit-io-key") ||
-      ""
-  };
-}
-
-async function fetchFeed(username: string, key: string, feed: FeedKey): Promise<[FeedKey, FeedData]> {
-  const endpoint = FEED_ENDPOINTS[feed];
-  const response = await fetch(`https://io.adafruit.com/api/v2/${username}/feeds/${endpoint}/data/last`, {
-    headers: {
-      "X-AIO-Key": key
-    }
-  });
+async function fetchLatestFeeds(): Promise<FeedState> {
+  const response = await fetch("/api/feeds/latest");
 
   if (!response.ok) {
-    throw new Error(`${endpoint}: ${response.status}`);
+    const data = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(data?.error ?? `Feed refresh failed: ${response.status}`);
   }
 
-  const data = await response.json();
-
-  return [
-    feed,
-    {
-      value: parseNumber(data.value),
-      updatedAt: data.created_at ?? data.updated_at ?? null
-    }
-  ];
+  const data = await response.json() as LatestFeedsResponse;
+  return data.feeds;
 }
 
 function StatusItem({ label, ok }: { label: string; ok: boolean }) {
@@ -230,31 +187,20 @@ function Metric({ icon, label, value, detail }: { icon: ReactNode; label: string
 
 export default function App() {
   const [feeds, setFeeds] = useState<FeedState>(buildInitialFeeds);
-  const [credentials, setCredentials] = useState<Credentials>(loadCredentials);
-  const [draftCredentials, setDraftCredentials] = useState<Credentials>(credentials);
-  const [showSettings, setShowSettings] = useState(!credentials.username || !credentials.key);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  const configured = Boolean(credentials.username && credentials.key);
-
   const refresh = useCallback(async () => {
-    if (!credentials.username || !credentials.key) {
-      setError("Adafruit IO credentials missing");
-      setShowSettings(true);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const results = await Promise.all(FEEDS.map((feed) => fetchFeed(credentials.username, credentials.key, feed)));
+      const results = await fetchLatestFeeds();
       setFeeds((current) => ({
         ...current,
-        ...Object.fromEntries(results)
+        ...results
       }));
       setLastRefresh(new Date().toISOString());
     } catch (fetchError) {
@@ -262,17 +208,13 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [credentials]);
+  }, []);
 
   useEffect(() => {
-    if (!configured) {
-      return undefined;
-    }
-
     refresh();
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [configured, refresh]);
+  }, [refresh]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
@@ -280,20 +222,12 @@ export default function App() {
   }, []);
 
   const tempC = toCelsius(feeds.temperature.value);
-  const ioConnected = configured && !error;
+  const ioConnected = !error;
 
   const lastSeen = useMemo(() => {
     const latest = newestTimestamp(feeds);
     return latest ? new Date(latest).toLocaleString() : "No feed data";
   }, [feeds]);
-
-  function saveCredentials(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    localStorage.setItem("adafruit-io-username", draftCredentials.username);
-    localStorage.setItem("adafruit-io-key", draftCredentials.key);
-    setCredentials(draftCredentials);
-    setShowSettings(false);
-  }
 
   return (
     <main className="app">
@@ -303,37 +237,11 @@ export default function App() {
           <h1>Environmental Hub</h1>
         </div>
         <div className="actions">
-          <button className="icon-button" type="button" onClick={refresh} disabled={loading || !configured} title="Refresh feeds">
+          <button className="icon-button" type="button" onClick={refresh} disabled={loading} title="Refresh feeds">
             <RefreshCw aria-hidden="true" className={loading ? "spin" : ""} size={19} />
-          </button>
-          <button className="icon-button" type="button" onClick={() => setShowSettings((visible) => !visible)} title="Adafruit IO settings">
-            <Settings aria-hidden="true" size={19} />
           </button>
         </div>
       </div>
-
-      {showSettings && (
-        <form className="settings-panel" onSubmit={saveCredentials}>
-          <label>
-            <span>Username</span>
-            <input
-              value={draftCredentials.username}
-              onChange={(event) => setDraftCredentials((current) => ({ ...current, username: event.target.value.trim() }))}
-              autoComplete="username"
-            />
-          </label>
-          <label>
-            <span>AIO key</span>
-            <input
-              value={draftCredentials.key}
-              onChange={(event) => setDraftCredentials((current) => ({ ...current, key: event.target.value.trim() }))}
-              autoComplete="off"
-              type="password"
-            />
-          </label>
-          <button type="submit">Save</button>
-        </form>
-      )}
 
       <div className="dashboard-layout">
         <TftDashboard feeds={feeds} loading={loading} ioConnected={ioConnected} now={now} />
@@ -372,7 +280,7 @@ export default function App() {
           <Metric
             icon={<Wifi size={19} />}
             label="Telemetry"
-            value={error ? "Error" : configured ? "Connected" : "Missing key"}
+            value={error ? "Error" : "Connected"}
             detail={error ?? `Last feed ${lastSeen}`}
           />
         </section>

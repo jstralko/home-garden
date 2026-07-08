@@ -127,20 +127,38 @@ Scrolling system status messages.
 
 ## React Dashboard
 
-The `frontend/` app mirrors the onboard TFT dashboard and reads the same Adafruit IO feeds.
+The `frontend/` app mirrors the onboard TFT dashboard. A Go backend reads the
+Adafruit IO feeds so the browser does not receive the Adafruit IO key.
+
+```bash
+cd backend
+cp .env.example .env
+$EDITOR .env
+set -a
+. ./.env
+set +a
+go run .
+```
+
+In another terminal:
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
 npm run dev
 ```
 
-Set these values in `frontend/.env`:
+The Vite dev server proxies `/api` to the Go backend on port `8080`. For a
+production-style local run, build the frontend first and start the backend:
 
-```text
-VITE_ADAFRUIT_IO_USERNAME=your-username
-VITE_ADAFRUIT_IO_KEY=your-adafruit-io-key
+```bash
+cd frontend
+npm run build
+cd ../backend
+set -a
+. ./.env
+set +a
+go run .
 ```
 
 The dashboard polls Adafruit IO every 30 seconds and uses the latest feed timestamps for the status indicators.
