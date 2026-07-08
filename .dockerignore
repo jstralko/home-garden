@@ -1,0 +1,13 @@
+.git
+.codex
+.agents
+
+secrets.h
+backend/.env
+frontend/.env
+
+frontend/node_modules
+frontend/dist
+backend/home-garden-backend
+
+*.log

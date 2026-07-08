@@ -162,6 +162,37 @@ go run .
 ```
 
 The dashboard polls Adafruit IO every 30 seconds and uses the latest feed timestamps for the status indicators.
+The backend caches feed responses for 30 seconds by default. Override with
+`FEED_CACHE_TTL_SECONDS` if needed.
+
+### Docker Deployment
+
+Build the deployable image:
+
+```bash
+docker build -t home-garden-dashboard .
+```
+
+Run it locally without exposing secrets in the frontend:
+
+```bash
+docker run --rm -p 8080:8080 \
+  --env-file backend/.env \
+  home-garden-dashboard
+```
+
+For Render, Fly.io, or another host, deploy this Dockerfile as a single web
+service and set these runtime environment variables in the provider's secret or
+environment settings:
+
+```text
+ADAFRUIT_IO_USERNAME
+ADAFRUIT_IO_KEY
+FEED_CACHE_TTL_SECONDS=30
+```
+
+Do not set the Adafruit IO key as a Docker build argument or any `VITE_*`
+frontend variable.
 
 ## Adafruit IO Feeds
 

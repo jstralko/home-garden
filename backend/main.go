@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -51,6 +52,14 @@ type server struct {
 	username string
 	key      string
 	client   *http.Client
+	cacheTTL time.Duration
+	cache    feedCache
+}
+
+type feedCache struct {
+	mu      sync.Mutex
+	data    latestFeedsResponse
+	expires time.Time
 }
 
 func main() {
@@ -64,6 +73,7 @@ func main() {
 	s := &server{
 		username: username,
 		key:      key,
+		cacheTTL: readCacheTTL(),
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -72,7 +82,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/feeds/latest", s.handleLatestFeeds)
-	mux.Handle("/", staticHandler())
+	mux.Handle("/", staticHandler(readFrontendDist()))
 
 	addr := ":" + port
 	log.Printf("home-garden backend listening on http://localhost%s", addr)
@@ -93,6 +103,11 @@ func (s *server) handleLatestFeeds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if data, ok := s.cachedFeeds(); ok {
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 
@@ -109,11 +124,31 @@ func (s *server) handleLatestFeeds(w http.ResponseWriter, r *http.Request) {
 		result.Feeds[feed.key] = data
 	}
 
+	s.storeCachedFeeds(result)
 	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *server) configured() bool {
 	return s.username != "" && s.key != ""
+}
+
+func (s *server) cachedFeeds() (latestFeedsResponse, bool) {
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+
+	if time.Now().After(s.cache.expires) || s.cache.data.Feeds == nil {
+		return latestFeedsResponse{}, false
+	}
+
+	return s.cache.data, true
+}
+
+func (s *server) storeCachedFeeds(data latestFeedsResponse) {
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+
+	s.cache.data = data
+	s.cache.expires = time.Now().Add(s.cacheTTL)
 }
 
 func (s *server) fetchFeed(ctx context.Context, feed feedConfig) (feedData, error) {
@@ -178,8 +213,31 @@ func parseOptionalFloat(value string) (*float64, error) {
 	return &parsed, nil
 }
 
-func staticHandler() http.Handler {
-	dist := "../frontend/dist"
+func readCacheTTL() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("FEED_CACHE_TTL_SECONDS"))
+	if raw == "" {
+		return 30 * time.Second
+	}
+
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds < 1 {
+		log.Printf("invalid FEED_CACHE_TTL_SECONDS=%q, using 30 seconds", raw)
+		return 30 * time.Second
+	}
+
+	return time.Duration(seconds) * time.Second
+}
+
+func readFrontendDist() string {
+	dist := strings.TrimSpace(os.Getenv("FRONTEND_DIST"))
+	if dist == "" {
+		return "../frontend/dist"
+	}
+
+	return dist
+}
+
+func staticHandler(dist string) http.Handler {
 	if _, err := os.Stat(dist); errors.Is(err, os.ErrNotExist) {
 		return http.NotFoundHandler()
 	}
