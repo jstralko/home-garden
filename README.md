@@ -125,6 +125,26 @@ BME✓ LUX✓ SOIL✓ BAT✓ WF✓ IO✓
 
 Scrolling system status messages.
 
+## React Dashboard
+
+The `frontend/` app mirrors the onboard TFT dashboard and reads the same Adafruit IO feeds.
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Set these values in `frontend/.env`:
+
+```text
+VITE_ADAFRUIT_IO_USERNAME=your-username
+VITE_ADAFRUIT_IO_KEY=your-adafruit-io-key
+```
+
+The dashboard polls Adafruit IO every 30 seconds and uses the latest feed timestamps for the status indicators.
+
 ## Adafruit IO Feeds
 
 Current feeds:
@@ -135,19 +155,23 @@ humidity
 pressure
 gas
 lux
-soil_raw
-soil_voltage
-soil_percent
-battery_voltage
-battery_percent
+soil-raw
+soil-voltage
+soil-percent
+battery-voltage
+battery-percent
 ```
+
+Adafruit IO feed keys use dashes for multi-word names. Local C++ and React
+state identifiers may use underscores, but API endpoints and `io.feed(...)`
+names should use the dash-separated feed keys above.
 
 Planned:
 
 ```text
-system_voltage
-system_current
-system_power
+system-voltage
+system-current
+system-power
 ```
 
 ## Secrets Management

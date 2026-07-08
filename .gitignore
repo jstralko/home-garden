@@ -1,1 +1,4 @@
 secrets.h
+frontend/.env
+frontend/node_modules/
+frontend/dist/

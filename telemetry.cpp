@@ -10,15 +10,15 @@
 AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);
 
 AdafruitIO_Feed *temperatureFeed    = io.feed("temperature");
-AdafruitIO_Feed *batteryVoltageFeed = io.feed("battery_voltage");
-AdafruitIO_Feed *batteryPercentFeed = io.feed("battery_percent");
+AdafruitIO_Feed *batteryVoltageFeed = io.feed("battery-voltage");
+AdafruitIO_Feed *batteryPercentFeed = io.feed("battery-percent");
 AdafruitIO_Feed *humidityFeed       = io.feed("humidity");
 AdafruitIO_Feed *pressureFeed       = io.feed("pressure");
 AdafruitIO_Feed *gasFeed            = io.feed("gas");
 AdafruitIO_Feed *luxFeed            = io.feed("lux");
-AdafruitIO_Feed *soilRawFeed        = io.feed("soil_raw");
-AdafruitIO_Feed *soilVoltageFeed    = io.feed("soil_voltage");
-AdafruitIO_Feed *soilPercentFeed    = io.feed("soil_percent");
+AdafruitIO_Feed *soilRawFeed        = io.feed("soil-raw");
+AdafruitIO_Feed *soilVoltageFeed    = io.feed("soil-voltage");
+AdafruitIO_Feed *soilPercentFeed    = io.feed("soil-percent");
 
 bool wifiConnected = false;
 bool ioConnected = false;
