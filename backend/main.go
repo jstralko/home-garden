@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,7 +30,22 @@ type latestFeedsResponse struct {
 	Feeds map[string]feedData `json:"feeds"`
 }
 
+type luxPoint struct {
+	Value     float64 `json:"value"`
+	UpdatedAt string  `json:"updatedAt"`
+}
+
+type luxDayResponse struct {
+	Points []luxPoint `json:"points"`
+}
+
 type adafruitLastData struct {
+	Value     string `json:"value"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+type adafruitDataPoint struct {
 	Value     string `json:"value"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
@@ -54,11 +70,20 @@ type server struct {
 	client   *http.Client
 	cacheTTL time.Duration
 	cache    feedCache
+	luxCache luxHistoryCache
 }
 
 type feedCache struct {
 	mu      sync.Mutex
 	data    latestFeedsResponse
+	expires time.Time
+}
+
+type luxHistoryCache struct {
+	mu      sync.Mutex
+	start   string
+	end     string
+	data    luxDayResponse
 	expires time.Time
 }
 
@@ -82,6 +107,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/feeds/latest", s.handleLatestFeeds)
+	mux.HandleFunc("GET /api/feeds/lux/day", s.handleLuxDay)
 	mux.Handle("/", staticHandler(readFrontendDist()))
 
 	addr := ":" + port
@@ -128,6 +154,39 @@ func (s *server) handleLatestFeeds(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *server) handleLuxDay(w http.ResponseWriter, r *http.Request) {
+	if !s.configured() {
+		writeError(w, http.StatusServiceUnavailable, "ADAFRUIT_IO_USERNAME and ADAFRUIT_IO_KEY must be set on the backend")
+		return
+	}
+
+	start, end, err := parseTimeRange(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	startKey := start.Format(time.RFC3339Nano)
+	endKey := end.Format(time.RFC3339Nano)
+	if data, ok := s.cachedLuxHistory(startKey, endKey); ok {
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+	defer cancel()
+
+	points, err := s.fetchFeedHistory(ctx, feedConfig{key: "lux", endpoint: "lux"}, start, end)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	response := luxDayResponse{Points: points}
+	s.storeCachedLuxHistory(startKey, endKey, response)
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (s *server) configured() bool {
 	return s.username != "" && s.key != ""
 }
@@ -149,6 +208,27 @@ func (s *server) storeCachedFeeds(data latestFeedsResponse) {
 
 	s.cache.data = data
 	s.cache.expires = time.Now().Add(s.cacheTTL)
+}
+
+func (s *server) cachedLuxHistory(start string, end string) (luxDayResponse, bool) {
+	s.luxCache.mu.Lock()
+	defer s.luxCache.mu.Unlock()
+
+	if time.Now().After(s.luxCache.expires) || s.luxCache.start != start || s.luxCache.end != end {
+		return luxDayResponse{}, false
+	}
+
+	return s.luxCache.data, true
+}
+
+func (s *server) storeCachedLuxHistory(start string, end string, data luxDayResponse) {
+	s.luxCache.mu.Lock()
+	defer s.luxCache.mu.Unlock()
+
+	s.luxCache.start = start
+	s.luxCache.end = end
+	s.luxCache.data = data
+	s.luxCache.expires = time.Now().Add(s.cacheTTL)
 }
 
 func (s *server) fetchFeed(ctx context.Context, feed feedConfig) (feedData, error) {
@@ -199,6 +279,63 @@ func (s *server) fetchFeed(ctx context.Context, feed feedConfig) (feedData, erro
 	return data, nil
 }
 
+func (s *server) fetchFeedHistory(ctx context.Context, feed feedConfig, start time.Time, end time.Time) ([]luxPoint, error) {
+	feedURL := fmt.Sprintf(
+		"https://io.adafruit.com/api/v2/%s/feeds/%s/data?limit=1000",
+		url.PathEscape(s.username),
+		url.PathEscape(feed.endpoint),
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-AIO-Key", s.key)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s history: %w", feed.endpoint, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("%s history: Adafruit IO returned %d", feed.endpoint, resp.StatusCode)
+	}
+
+	var payload []adafruitDataPoint
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("%s history: decode response: %w", feed.endpoint, err)
+	}
+
+	points := make([]luxPoint, 0, len(payload))
+	for _, item := range payload {
+		value, err := parseOptionalFloat(item.Value)
+		if err != nil || value == nil {
+			continue
+		}
+
+		updatedAt := item.CreatedAt
+		if updatedAt == "" {
+			updatedAt = item.UpdatedAt
+		}
+		timestamp, err := time.Parse(time.RFC3339Nano, updatedAt)
+		if err != nil || timestamp.Before(start) || !timestamp.Before(end) {
+			continue
+		}
+
+		points = append(points, luxPoint{
+			Value:     *value,
+			UpdatedAt: updatedAt,
+		})
+	}
+
+	sort.Slice(points, func(i int, j int) bool {
+		return points[i].UpdatedAt < points[j].UpdatedAt
+	})
+
+	return points, nil
+}
+
 func parseOptionalFloat(value string) (*float64, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -211,6 +348,30 @@ func parseOptionalFloat(value string) (*float64, error) {
 	}
 
 	return &parsed, nil
+}
+
+func parseTimeRange(r *http.Request) (time.Time, time.Time, error) {
+	startRaw := strings.TrimSpace(r.URL.Query().Get("start"))
+	endRaw := strings.TrimSpace(r.URL.Query().Get("end"))
+	if startRaw == "" || endRaw == "" {
+		return time.Time{}, time.Time{}, fmt.Errorf("start and end query parameters are required")
+	}
+
+	start, err := time.Parse(time.RFC3339Nano, startRaw)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid start timestamp")
+	}
+
+	end, err := time.Parse(time.RFC3339Nano, endRaw)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid end timestamp")
+	}
+
+	if !start.Before(end) {
+		return time.Time{}, time.Time{}, fmt.Errorf("start must be before end")
+	}
+
+	return start, end, nil
 }
 
 func readCacheTTL() time.Duration {

@@ -272,6 +272,101 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.lux-chart-section {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid rgba(242, 245, 239, 0.12);
+  border-radius: 8px;
+  background: rgba(12, 14, 12, 0.68);
+}
+
+.chart-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.chart-heading h2 {
+  margin: 2px 0 0;
+  color: #fffaf2;
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.chart-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #d9dfd5;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.chart-stats span {
+  padding: 5px 8px;
+  border: 1px solid rgba(242, 245, 239, 0.12);
+  border-radius: 6px;
+  background: rgba(242, 245, 239, 0.06);
+}
+
+.chart-frame {
+  overflow: hidden;
+}
+
+.lux-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 220px;
+}
+
+.chart-grid line {
+  stroke: rgba(242, 245, 239, 0.12);
+  stroke-width: 1;
+}
+
+.chart-grid text,
+.chart-axis text {
+  fill: #9da89a;
+  font-size: 12px;
+  text-anchor: end;
+}
+
+.chart-axis line {
+  stroke: rgba(242, 245, 239, 0.22);
+}
+
+.chart-axis text {
+  text-anchor: middle;
+}
+
+.lux-area {
+  fill: url("#lux-fill");
+}
+
+.lux-line {
+  fill: none;
+  stroke: #ffe34e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.lux-dot {
+  fill: #fff2a3;
+  stroke: #171915;
+  stroke-width: 1;
+}
+
+.chart-empty {
+  fill: #a7b2a4;
+  font-size: 14px;
+  text-anchor: middle;
+}
+
 .footer {
   margin-top: 16px;
   color: #a7b2a4;
@@ -313,6 +408,15 @@ h1 {
 
   .metrics-grid {
     grid-template-columns: 1fr;
+  }
+
+  .chart-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chart-stats {
+    justify-content: flex-start;
   }
 
   .tft-shell {

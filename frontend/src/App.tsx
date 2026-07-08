@@ -27,6 +27,15 @@ type LatestFeedsResponse = {
   feeds: FeedState;
 };
 
+type LuxPoint = {
+  value: number;
+  updatedAt: string;
+};
+
+type LuxDayResponse = {
+  points: LuxPoint[];
+};
+
 const FEEDS: FeedKey[] = [
   "temperature",
   "humidity",
@@ -97,6 +106,33 @@ async function fetchLatestFeeds(): Promise<FeedState> {
 
   const data = await response.json() as LatestFeedsResponse;
   return data.feeds;
+}
+
+function todayRange(): { start: Date; end: Date } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+
+  return { start, end };
+}
+
+async function fetchLuxDay(): Promise<LuxPoint[]> {
+  const { start, end } = todayRange();
+  const params = new URLSearchParams({
+    start: start.toISOString(),
+    end: end.toISOString()
+  });
+  const response = await fetch(`/api/feeds/lux/day?${params.toString()}`);
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(data?.error ?? `Lux history failed: ${response.status}`);
+  }
+
+  const data = await response.json() as LuxDayResponse;
+  return data.points;
 }
 
 function StatusItem({ label, ok }: { label: string; ok: boolean }) {
@@ -185,16 +221,140 @@ function Metric({ icon, label, value, detail }: { icon: ReactNode; label: string
   );
 }
 
+function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | null }) {
+  const { start, end } = useMemo(todayRange, []);
+  const chart = useMemo(() => buildLuxChart(points, start, end), [points, start, end]);
+
+  return (
+    <section className="lux-chart-section" aria-label="Today's lux history">
+      <div className="chart-heading">
+        <div>
+          <div className="metric-label">Sunlight Today</div>
+          <h2>Lux Through The Day</h2>
+        </div>
+        <div className="chart-stats">
+          <span>Peak {formatLux(chart.peak)} lux</span>
+          <span>Avg {formatLux(chart.average)} lux</span>
+          <span>{chart.luxHours.toFixed(1)} klux-h</span>
+        </div>
+      </div>
+
+      <div className="chart-frame">
+        <svg className="lux-chart" viewBox="0 0 760 260" role="img" aria-label="Line chart of today's lux readings">
+          <defs>
+            <linearGradient id="lux-fill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#ffe34e" stopOpacity="0.42" />
+              <stop offset="100%" stopColor="#ffe34e" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <g className="chart-grid">
+            {chart.yTicks.map((tick) => (
+              <g key={tick.label}>
+                <line x1="52" x2="734" y1={tick.y} y2={tick.y} />
+                <text x="42" y={tick.y + 4}>{tick.label}</text>
+              </g>
+            ))}
+          </g>
+          <g className="chart-axis">
+            {chart.xTicks.map((tick) => (
+              <g key={tick.label}>
+                <line x1={tick.x} x2={tick.x} y1="218" y2="224" />
+                <text x={tick.x} y="244">{tick.label}</text>
+              </g>
+            ))}
+          </g>
+          {chart.areaPath && <path className="lux-area" d={chart.areaPath} />}
+          {chart.linePath && <path className="lux-line" d={chart.linePath} />}
+          {chart.points.map((point) => (
+            <circle key={`${point.x}-${point.y}`} className="lux-dot" cx={point.x} cy={point.y} r="2.4" />
+          ))}
+          {!chart.linePath && (
+            <text className="chart-empty" x="380" y="132">{error ?? "No lux samples today"}</text>
+          )}
+        </svg>
+      </div>
+    </section>
+  );
+}
+
+function buildLuxChart(points: LuxPoint[], start: Date, end: Date) {
+  const width = 760;
+  const height = 260;
+  const left = 52;
+  const right = 26;
+  const top = 22;
+  const bottom = 42;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  const sorted = points
+    .map((point) => ({
+      value: point.value,
+      time: new Date(point.updatedAt).getTime()
+    }))
+    .filter((point) => Number.isFinite(point.value) && Number.isFinite(point.time))
+    .sort((a, b) => a.time - b.time);
+  const peak = sorted.reduce((max, point) => Math.max(max, point.value), 0);
+  const maxY = Math.max(100, Math.ceil(peak / 100) * 100);
+  const chartPoints = sorted.map((point) => ({
+    x: left + ((point.time - startMs) / (endMs - startMs)) * chartWidth,
+    y: top + (1 - point.value / maxY) * chartHeight
+  }));
+  const linePath = chartPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+  const areaPath = chartPoints.length > 1
+    ? `${linePath} L ${chartPoints[chartPoints.length - 1].x.toFixed(1)} ${top + chartHeight} L ${chartPoints[0].x.toFixed(1)} ${top + chartHeight} Z`
+    : "";
+  const average = sorted.length === 0 ? null : sorted.reduce((sum, point) => sum + point.value, 0) / sorted.length;
+
+  let luxHours = 0;
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    const hours = (current.time - previous.time) / (1000 * 60 * 60);
+    if (hours > 0 && hours < 3) {
+      luxHours += ((previous.value + current.value) / 2) * hours / 1000;
+    }
+  }
+
+  const yTicks = [0, maxY / 2, maxY].map((value) => ({
+    label: formatLux(value),
+    y: top + (1 - value / maxY) * chartHeight
+  }));
+  const xTicks = [6, 12, 18].map((hour) => {
+    const tick = new Date(start);
+    tick.setHours(hour, 0, 0, 0);
+    return {
+      label: tick.toLocaleTimeString([], { hour: "numeric" }),
+      x: left + ((tick.getTime() - startMs) / (endMs - startMs)) * chartWidth
+    };
+  });
+
+  return {
+    areaPath,
+    average,
+    linePath,
+    luxHours,
+    peak,
+    points: chartPoints,
+    xTicks,
+    yTicks
+  };
+}
+
 export default function App() {
   const [feeds, setFeeds] = useState<FeedState>(buildInitialFeeds);
+  const [luxPoints, setLuxPoints] = useState<LuxPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [luxError, setLuxError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setLuxError(null);
 
     try {
       const results = await fetchLatestFeeds();
@@ -204,7 +364,16 @@ export default function App() {
       }));
       setLastRefresh(new Date().toISOString());
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Feed refresh failed");
+      const message = fetchError instanceof Error ? fetchError.message : "Feed refresh failed";
+      setError(message);
+    }
+
+    try {
+      const luxHistory = await fetchLuxDay();
+      setLuxPoints(luxHistory);
+    } catch (fetchError) {
+      const message = fetchError instanceof Error ? fetchError.message : "Lux history failed";
+      setLuxError(message);
     } finally {
       setLoading(false);
     }
@@ -285,6 +454,8 @@ export default function App() {
           />
         </section>
       </div>
+
+      <LuxDayChart points={luxPoints} error={luxError} />
 
       <footer className="footer">
         <span>Last refresh: {lastRefresh ? new Date(lastRefresh).toLocaleTimeString() : "--"}</span>
