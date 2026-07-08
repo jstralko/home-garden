@@ -1,5 +1,10 @@
 # Home Garden Monitoring Station
 
+## 🌍 Live
+You can view the deployed application here:
+
+,🚀 **[Live App](https://home-garden-cpb2.onrender.com)**
+
 An ESP32-S3 based environmental monitoring station for tracking garden conditions, collecting long-term telemetry, and displaying live sensor data on an onboard TFT display.
 
 ## Features
