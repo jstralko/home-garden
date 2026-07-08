@@ -321,6 +321,7 @@ h1 {
   width: 100%;
   height: auto;
   min-height: 220px;
+  overflow: visible;
 }
 
 .chart-grid line {
@@ -352,13 +353,50 @@ h1 {
   stroke: #ffe34e;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3;
+  stroke-width: 3.2;
+  filter: drop-shadow(0 0 5px rgba(255, 227, 78, 0.28));
 }
 
 .lux-dot {
   fill: #fff2a3;
   stroke: #171915;
   stroke-width: 1;
+  opacity: 0.72;
+}
+
+.lux-hit-target {
+  fill: transparent;
+  outline: none;
+  cursor: crosshair;
+}
+
+.lux-active-dot {
+  fill: #fff7bf;
+  stroke: #ff9b2d;
+  stroke-width: 2.5;
+}
+
+.chart-crosshair {
+  stroke: rgba(255, 227, 78, 0.42);
+  stroke-dasharray: 4 5;
+  stroke-width: 1.2;
+}
+
+.chart-tooltip-box {
+  fill: rgba(10, 12, 10, 0.94);
+  stroke: rgba(255, 227, 78, 0.36);
+  stroke-width: 1;
+}
+
+.chart-tooltip-value {
+  fill: #fffaf2;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chart-tooltip-time {
+  fill: #b5c0b0;
+  font-size: 12px;
 }
 
 .chart-empty {

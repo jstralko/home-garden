@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -417,7 +418,26 @@ func staticHandler(dist string) http.Handler {
 	}
 
 	log.Printf("serving frontend from %q", dist)
-	return http.FileServer(http.Dir(dist))
+	fileServer := http.FileServer(http.Dir(dist))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Clean(r.URL.Path)
+		if path == "." || path == "/" {
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		if strings.HasPrefix(path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
+		if contentType := contentTypeForPath(path); contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+
+		fileServer.ServeHTTP(w, r)
+	})
 }
 
 func hasIndexHTML(dist string) bool {
@@ -427,6 +447,23 @@ func hasIndexHTML(dist string) bool {
 
 	info, err := os.Stat(filepath.Join(dist, "index.html"))
 	return err == nil && !info.IsDir()
+}
+
+func contentTypeForPath(path string) string {
+	switch filepath.Ext(path) {
+	case ".css":
+		return "text/css; charset=utf-8"
+	case ".js", ".mjs":
+		return "text/javascript; charset=utf-8"
+	case ".html":
+		return "text/html; charset=utf-8"
+	case ".json":
+		return "application/json; charset=utf-8"
+	case ".svg":
+		return "image/svg+xml"
+	}
+
+	return mime.TypeByExtension(filepath.Ext(path))
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

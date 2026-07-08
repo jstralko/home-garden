@@ -36,6 +36,14 @@ type LuxDayResponse = {
   points: LuxPoint[];
 };
 
+type ChartPoint = {
+  x: number;
+  y: number;
+  value: number;
+  time: number;
+  label: string;
+};
+
 const FEEDS: FeedKey[] = [
   "temperature",
   "humidity",
@@ -224,6 +232,8 @@ function Metric({ icon, label, value, detail }: { icon: ReactNode; label: string
 function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | null }) {
   const { start, end } = useMemo(todayRange, []);
   const chart = useMemo(() => buildLuxChart(points, start, end), [points, start, end]);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activePoint = activeIndex === null ? null : chart.points[activeIndex] ?? null;
 
   return (
     <section className="lux-chart-section" aria-label="Today's lux history">
@@ -266,7 +276,32 @@ function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | nu
           {chart.areaPath && <path className="lux-area" d={chart.areaPath} />}
           {chart.linePath && <path className="lux-line" d={chart.linePath} />}
           {chart.points.map((point) => (
-            <circle key={`${point.x}-${point.y}`} className="lux-dot" cx={point.x} cy={point.y} r="2.4" />
+            <circle key={`${point.x}-${point.y}`} className="lux-dot" cx={point.x} cy={point.y} r="2" />
+          ))}
+          {activePoint && (
+            <g className="chart-tooltip-layer" pointerEvents="none">
+              <line className="chart-crosshair" x1={activePoint.x} x2={activePoint.x} y1="22" y2="218" />
+              <circle className="lux-active-dot" cx={activePoint.x} cy={activePoint.y} r="5" />
+              <g transform={`translate(${tooltipX(activePoint.x)} ${tooltipY(activePoint.y)})`}>
+                <rect className="chart-tooltip-box" width="124" height="52" rx="6" />
+                <text className="chart-tooltip-value" x="10" y="21">{formatLux(activePoint.value)} lux</text>
+                <text className="chart-tooltip-time" x="10" y="39">{activePoint.label}</text>
+              </g>
+            </g>
+          )}
+          {chart.points.map((point, index) => (
+            <circle
+              key={`hit-${point.x}-${point.y}`}
+              className="lux-hit-target"
+              cx={point.x}
+              cy={point.y}
+              r="11"
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseLeave={() => setActiveIndex(null)}
+              onFocus={() => setActiveIndex(index)}
+              onBlur={() => setActiveIndex(null)}
+              tabIndex={0}
+            />
           ))}
           {!chart.linePath && (
             <text className="chart-empty" x="380" y="132">{error ?? "No lux samples today"}</text>
@@ -297,11 +332,17 @@ function buildLuxChart(points: LuxPoint[], start: Date, end: Date) {
     .sort((a, b) => a.time - b.time);
   const peak = sorted.reduce((max, point) => Math.max(max, point.value), 0);
   const maxY = Math.max(100, Math.ceil(peak / 100) * 100);
-  const chartPoints = sorted.map((point) => ({
+  const chartPoints: ChartPoint[] = sorted.map((point) => ({
     x: left + ((point.time - startMs) / (endMs - startMs)) * chartWidth,
-    y: top + (1 - point.value / maxY) * chartHeight
+    y: top + (1 - point.value / maxY) * chartHeight,
+    value: point.value,
+    time: point.time,
+    label: new Date(point.time).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit"
+    })
   }));
-  const linePath = chartPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+  const linePath = smoothPath(chartPoints);
   const areaPath = chartPoints.length > 1
     ? `${linePath} L ${chartPoints[chartPoints.length - 1].x.toFixed(1)} ${top + chartHeight} L ${chartPoints[0].x.toFixed(1)} ${top + chartHeight} Z`
     : "";
@@ -340,6 +381,45 @@ function buildLuxChart(points: LuxPoint[], start: Date, end: Date) {
     xTicks,
     yTicks
   };
+}
+
+function smoothPath(points: ChartPoint[]): string {
+  if (points.length === 0) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  }
+
+  return points.reduce((path, point, index) => {
+    if (index === 0) {
+      return `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }
+
+    const previous = points[index - 1];
+    const controlDistance = Math.max(4, (point.x - previous.x) * 0.42);
+    const c1x = previous.x + controlDistance;
+    const c2x = point.x - controlDistance;
+
+    return `${path} C ${c1x.toFixed(1)} ${previous.y.toFixed(1)}, ${c2x.toFixed(1)} ${point.y.toFixed(1)}, ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+  }, "");
+}
+
+function tooltipX(x: number): number {
+  if (x > 620) {
+    return x - 132;
+  }
+
+  if (x < 120) {
+    return x + 10;
+  }
+
+  return x - 62;
+}
+
+function tooltipY(y: number): number {
+  return y < 86 ? y + 14 : y - 66;
 }
 
 export default function App() {
