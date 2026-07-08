@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: home-garden
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: FEED_CACHE_TTL_SECONDS
+        value: "30"
+      - key: ADAFRUIT_IO_USERNAME
+        sync: false
+      - key: ADAFRUIT_IO_KEY
+        sync: false

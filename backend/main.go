@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -230,19 +231,42 @@ func readCacheTTL() time.Duration {
 
 func readFrontendDist() string {
 	dist := strings.TrimSpace(os.Getenv("FRONTEND_DIST"))
-	if dist == "" {
-		return "../frontend/dist"
+	if dist != "" {
+		return dist
 	}
 
-	return dist
+	candidates := []string{
+		"/app/frontend/dist",
+		"frontend/dist",
+		"../frontend/dist",
+	}
+
+	for _, candidate := range candidates {
+		if hasIndexHTML(candidate) {
+			return candidate
+		}
+	}
+
+	return candidates[0]
 }
 
 func staticHandler(dist string) http.Handler {
-	if _, err := os.Stat(dist); errors.Is(err, os.ErrNotExist) {
+	if !hasIndexHTML(dist) {
+		log.Printf("frontend dist not found at %q", dist)
 		return http.NotFoundHandler()
 	}
 
+	log.Printf("serving frontend from %q", dist)
 	return http.FileServer(http.Dir(dist))
+}
+
+func hasIndexHTML(dist string) bool {
+	if dist == "" {
+		return false
+	}
+
+	info, err := os.Stat(filepath.Join(dist, "index.html"))
+	return err == nil && !info.IsDir()
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

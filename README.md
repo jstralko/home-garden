@@ -194,6 +194,24 @@ FEED_CACHE_TTL_SECONDS=30
 Do not set the Adafruit IO key as a Docker build argument or any `VITE_*`
 frontend variable.
 
+### Render Deployment
+
+Deploy this repo as a Docker web service. If Render detects it as a native Go
+service, the backend may start without a built `frontend/dist` and `/` will
+return `404`.
+
+Use the included `render.yaml` Blueprint or configure the service manually:
+
+* Runtime: Docker
+* Dockerfile path: `./Dockerfile`
+* Runtime environment variables:
+  * `ADAFRUIT_IO_USERNAME`
+  * `ADAFRUIT_IO_KEY`
+  * `FEED_CACHE_TTL_SECONDS=30`
+
+After changing the service type or Dockerfile, trigger a manual deploy with
+Clear build cache.
+
 ## Adafruit IO Feeds
 
 Current feeds:
