@@ -476,11 +476,13 @@ export default function App() {
   const [feeds, setFeeds] = useState<FeedState>(buildInitialFeeds);
   const [luxPoints, setLuxPoints] = useState<HistoryPoint[]>([]);
   const [soilPoints, setSoilPoints] = useState<HistoryPoint[]>([]);
+  const [temperaturePoints, setTemperaturePoints] = useState<HistoryPoint[]>([]);
   const [chartMode, setChartMode] = useState<ChartMode>("12h");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [luxError, setLuxError] = useState<string | null>(null);
   const [soilError, setSoilError] = useState<string | null>(null);
+  const [temperatureError, setTemperatureError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -489,6 +491,7 @@ export default function App() {
     setError(null);
     setLuxError(null);
     setSoilError(null);
+    setTemperatureError(null);
 
     try {
       const results = await fetchLatestFeeds();
@@ -516,6 +519,14 @@ export default function App() {
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Soil moisture history failed";
       setSoilError(message);
+    }
+
+    try {
+      const temperatureHistory = await fetchDayHistory("/api/feeds/temperature/day", "Temperature", chartMode);
+      setTemperaturePoints(temperatureHistory);
+    } catch (fetchError) {
+      const message = fetchError instanceof Error ? fetchError.message : "Temperature history failed";
+      setTemperatureError(message);
     } finally {
       setLoading(false);
     }
@@ -637,6 +648,22 @@ export default function App() {
           strokeClass="soil-chart"
           subheading={chartMode === "month" ? "Soil Month" : "Soil Window"}
           unit="%"
+        />
+        <DayLineChart
+          ariaLabel={chartMode === "month" ? "Line chart of daily average temperature readings for the last month" : "Line chart of temperature readings for the last 12 hours"}
+          averageLabel="Avg"
+          emptyText={chartMode === "month" ? "No temperature samples this month" : "No temperature samples in the last 12 hours"}
+          error={temperatureError}
+          fillId="temperature-fill"
+          formatValue={(value) => formatFixed(value, 1)}
+          heading={chartMode === "month" ? "Daily Average Temperature" : "Temperature Last 12 Hours"}
+          areaDivisor={1}
+          mode={chartMode}
+          points={temperaturePoints}
+          statLabel="F-h"
+          strokeClass="temperature-chart"
+          subheading={chartMode === "month" ? "Temperature Month" : "Temperature Window"}
+          unit="F"
         />
       </div>
 

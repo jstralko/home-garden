@@ -369,6 +369,11 @@ h1 {
   --chart-accent: #70dc7d;
 }
 
+.temperature-chart {
+  --chart-color: #ff9b2d;
+  --chart-accent: #ff3f48;
+}
+
 .chart-grid line {
   stroke: rgba(242, 245, 239, 0.12);
   stroke-width: 1;

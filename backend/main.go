@@ -74,6 +74,7 @@ type server struct {
 	cache     feedCache
 	luxCache  luxHistoryCache
 	soilCache luxHistoryCache
+	tempCache luxHistoryCache
 }
 
 type feedCache struct {
@@ -112,6 +113,7 @@ func main() {
 	mux.HandleFunc("GET /api/feeds/latest", s.handleLatestFeeds)
 	mux.HandleFunc("GET /api/feeds/lux/day", s.handleLuxDay)
 	mux.HandleFunc("GET /api/feeds/soil-percent/day", s.handleSoilPercentDay)
+	mux.HandleFunc("GET /api/feeds/temperature/day", s.handleTemperatureDay)
 	mux.Handle("/", staticHandler(readFrontendDist()))
 
 	addr := ":" + port
@@ -164,6 +166,10 @@ func (s *server) handleLuxDay(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleSoilPercentDay(w http.ResponseWriter, r *http.Request) {
 	s.handleFeedHistory(w, r, feedConfig{key: "soil_percent", endpoint: "soil-percent"}, &s.soilCache)
+}
+
+func (s *server) handleTemperatureDay(w http.ResponseWriter, r *http.Request) {
+	s.handleFeedHistory(w, r, feedConfig{key: "temperature", endpoint: "temperature"}, &s.tempCache)
 }
 
 func (s *server) handleFeedHistory(w http.ResponseWriter, r *http.Request, feed feedConfig, cache *luxHistoryCache) {
