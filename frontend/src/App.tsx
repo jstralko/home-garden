@@ -275,9 +275,6 @@ function LuxDayChart({ points, error }: { points: LuxPoint[]; error: string | nu
           </g>
           {chart.areaPath && <path className="lux-area" d={chart.areaPath} />}
           {chart.linePath && <path className="lux-line" d={chart.linePath} />}
-          {chart.points.map((point) => (
-            <circle key={`${point.x}-${point.y}`} className="lux-dot" cx={point.x} cy={point.y} r="2" />
-          ))}
           {activePoint && (
             <g className="chart-tooltip-layer" pointerEvents="none">
               <line className="chart-crosshair" x1={activePoint.x} x2={activePoint.x} y1="22" y2="218" />

@@ -353,15 +353,8 @@ h1 {
   stroke: #ffe34e;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3.2;
+  stroke-width: 2.1;
   filter: drop-shadow(0 0 5px rgba(255, 227, 78, 0.28));
-}
-
-.lux-dot {
-  fill: #fff2a3;
-  stroke: #171915;
-  stroke-width: 1;
-  opacity: 0.72;
 }
 
 .lux-hit-target {
