@@ -1,10 +1,10 @@
 #pragma once
 
-#define DEEP_SLEEP_MODE false
+#define DEEP_SLEEP_MODE true
 #define LOW_POWER_MODE false
 
-const uint64_t DEEP_SLEEP_INTERVAL_US = 5ULL * 60ULL * 1000000ULL;
-const unsigned long DEEP_SLEEP_DISPLAY_TIME = 2000;
+const uint64_t DEEP_SLEEP_INTERVAL_US = 15ULL * 60ULL * 1000000ULL;
+const unsigned long DEEP_SLEEP_DISPLAY_TIME = 5000;
 const unsigned long TELEMETRY_CONNECT_TIMEOUT_DEEP_SLEEP = 10000;
 const unsigned long TELEMETRY_CONNECT_TIMEOUT_NORMAL = 20000;
 
