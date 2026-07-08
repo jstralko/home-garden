@@ -38,6 +38,7 @@ type luxPoint struct {
 
 type luxDayResponse struct {
 	Points []luxPoint `json:"points"`
+	Mode   string     `json:"mode"`
 }
 
 type adafruitLastData struct {
@@ -179,7 +180,9 @@ func (s *server) handleFeedHistory(w http.ResponseWriter, r *http.Request, feed 
 
 	startKey := start.Format(time.RFC3339Nano)
 	endKey := end.Format(time.RFC3339Nano)
-	if data, ok := s.cachedHistory(cache, startKey, endKey); ok {
+	mode := readHistoryMode(r)
+	cacheKey := fmt.Sprintf("%s:%s", mode, feed.key)
+	if data, ok := s.cachedHistory(cache, cacheKey, startKey, endKey); ok {
 		writeJSON(w, http.StatusOK, data)
 		return
 	}
@@ -193,8 +196,12 @@ func (s *server) handleFeedHistory(w http.ResponseWriter, r *http.Request, feed 
 		return
 	}
 
-	response := luxDayResponse{Points: points}
-	s.storeCachedHistory(cache, startKey, endKey, response)
+	if mode == "month" {
+		points = aggregateDaily(points, start, end)
+	}
+
+	response := luxDayResponse{Points: points, Mode: mode}
+	s.storeCachedHistory(cache, cacheKey, startKey, endKey, response)
 	writeJSON(w, http.StatusOK, response)
 }
 
@@ -221,23 +228,23 @@ func (s *server) storeCachedFeeds(data latestFeedsResponse) {
 	s.cache.expires = time.Now().Add(s.cacheTTL)
 }
 
-func (s *server) cachedHistory(cache *luxHistoryCache, start string, end string) (luxDayResponse, bool) {
+func (s *server) cachedHistory(cache *luxHistoryCache, key string, start string, end string) (luxDayResponse, bool) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	if time.Now().After(cache.expires) || cache.start != start || cache.end != end {
+	if time.Now().After(cache.expires) || cache.start != key || cache.end != start+"|"+end {
 		return luxDayResponse{}, false
 	}
 
 	return cache.data, true
 }
 
-func (s *server) storeCachedHistory(cache *luxHistoryCache, start string, end string, data luxDayResponse) {
+func (s *server) storeCachedHistory(cache *luxHistoryCache, key string, start string, end string, data luxDayResponse) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	cache.start = start
-	cache.end = end
+	cache.start = key
+	cache.end = start + "|" + end
 	cache.data = data
 	cache.expires = time.Now().Add(s.cacheTTL)
 }
@@ -383,6 +390,57 @@ func parseTimeRange(r *http.Request) (time.Time, time.Time, error) {
 	}
 
 	return start, end, nil
+}
+
+func readHistoryMode(r *http.Request) string {
+	mode := strings.TrimSpace(r.URL.Query().Get("mode"))
+	if mode == "month" {
+		return "month"
+	}
+
+	return "12h"
+}
+
+func aggregateDaily(points []luxPoint, start time.Time, end time.Time) []luxPoint {
+	type bucket struct {
+		sum   float64
+		count int
+	}
+
+	buckets := map[string]bucket{}
+	for _, point := range points {
+		timestamp, err := time.Parse(time.RFC3339Nano, point.UpdatedAt)
+		if err != nil || timestamp.Before(start) || !timestamp.Before(end) {
+			continue
+		}
+
+		key := timestamp.Format("2006-01-02")
+		current := buckets[key]
+		current.sum += point.Value
+		current.count += 1
+		buckets[key] = current
+	}
+
+	keys := make([]string, 0, len(buckets))
+	for key := range buckets {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	aggregated := make([]luxPoint, 0, len(keys))
+	for _, key := range keys {
+		current := buckets[key]
+		if current.count == 0 {
+			continue
+		}
+
+		aggregated = append(aggregated, luxPoint{
+			Value:     current.sum / float64(current.count),
+			UpdatedAt: key + "T12:00:00Z",
+		})
+	}
+
+	return aggregated
 }
 
 func readCacheTTL() time.Duration {

@@ -34,7 +34,10 @@ type HistoryPoint = {
 
 type DayHistoryResponse = {
   points: HistoryPoint[];
+  mode: ChartMode;
 };
+
+type ChartMode = "12h" | "month";
 
 type ChartPoint = {
   x: number;
@@ -116,21 +119,25 @@ async function fetchLatestFeeds(): Promise<FeedState> {
   return data.feeds;
 }
 
-function todayRange(): { start: Date; end: Date } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+function historyRange(mode: ChartMode): { start: Date; end: Date } {
+  const end = new Date();
+  const start = new Date(end);
 
-  const end = new Date(start);
-  end.setDate(start.getDate() + 1);
+  if (mode === "month") {
+    start.setDate(end.getDate() - 30);
+  } else {
+    start.setHours(end.getHours() - 12);
+  }
 
   return { start, end };
 }
 
-async function fetchDayHistory(endpoint: string, errorLabel: string): Promise<HistoryPoint[]> {
-  const { start, end } = todayRange();
+async function fetchDayHistory(endpoint: string, errorLabel: string, mode: ChartMode): Promise<HistoryPoint[]> {
+  const { start, end } = historyRange(mode);
   const params = new URLSearchParams({
     start: start.toISOString(),
-    end: end.toISOString()
+    end: end.toISOString(),
+    mode
   });
   const response = await fetch(`${endpoint}?${params.toString()}`);
 
@@ -238,6 +245,7 @@ function DayLineChart({
   formatValue,
   heading,
   areaDivisor,
+  mode,
   points,
   statLabel,
   strokeClass,
@@ -252,14 +260,15 @@ function DayLineChart({
   formatValue: (value: number | null) => string;
   heading: string;
   areaDivisor: number;
+  mode: ChartMode;
   points: HistoryPoint[];
   statLabel: string;
   strokeClass: string;
   subheading: string;
   unit: string;
 }) {
-  const { start, end } = useMemo(todayRange, []);
-  const chart = useMemo(() => buildDayChart(points, start, end), [points, start, end]);
+  const { start, end } = useMemo(() => historyRange(mode), [mode]);
+  const chart = useMemo(() => buildDayChart(points, start, end, mode, formatValue), [points, start, end, mode, formatValue]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePoint = activeIndex === null ? null : chart.points[activeIndex] ?? null;
 
@@ -273,7 +282,7 @@ function DayLineChart({
         <div className="chart-stats">
           <span>Peak {formatValue(chart.peak)}{unit}</span>
           <span>{averageLabel} {formatValue(chart.average)}{unit}</span>
-          <span>{(chart.areaHours / areaDivisor).toFixed(1)} {statLabel}</span>
+          <span>{mode === "month" ? `${chart.points.length} days` : `${(chart.areaHours / areaDivisor).toFixed(1)} ${statLabel}`}</span>
         </div>
       </div>
 
@@ -337,7 +346,7 @@ function DayLineChart({
   );
 }
 
-function buildDayChart(points: HistoryPoint[], start: Date, end: Date) {
+function buildDayChart(points: HistoryPoint[], start: Date, end: Date, mode: ChartMode, formatValue: (value: number | null) => string) {
   const width = 760;
   const height = 260;
   const left = 52;
@@ -362,10 +371,7 @@ function buildDayChart(points: HistoryPoint[], start: Date, end: Date) {
     y: top + (1 - point.value / maxY) * chartHeight,
     value: point.value,
     time: point.time,
-    label: new Date(point.time).toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit"
-    })
+    label: formatPointLabel(point.time, mode)
   }));
   const linePath = smoothPath(chartPoints);
   const areaPath = chartPoints.length > 1
@@ -384,14 +390,13 @@ function buildDayChart(points: HistoryPoint[], start: Date, end: Date) {
   }
 
   const yTicks = [0, maxY / 2, maxY].map((value) => ({
-    label: formatLux(value),
+    label: formatValue(value),
     y: top + (1 - value / maxY) * chartHeight
   }));
-  const xTicks = [6, 12, 18].map((hour) => {
-    const tick = new Date(start);
-    tick.setHours(hour, 0, 0, 0);
+  const xTicks = [0, 0.25, 0.5, 0.75, 1].map((offset) => {
+    const tick = new Date(start.getTime() + (endMs - startMs) * offset);
     return {
-      label: tick.toLocaleTimeString([], { hour: "numeric" }),
+      label: formatTickLabel(tick, mode),
       x: left + ((tick.getTime() - startMs) / (endMs - startMs)) * chartWidth
     };
   });
@@ -406,6 +411,26 @@ function buildDayChart(points: HistoryPoint[], start: Date, end: Date) {
     xTicks,
     yTicks
   };
+}
+
+function formatPointLabel(time: number, mode: ChartMode): string {
+  const date = new Date(time);
+  if (mode === "month") {
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function formatTickLabel(date: Date, mode: ChartMode): string {
+  if (mode === "month") {
+    return date.toLocaleDateString([], { month: "numeric", day: "numeric" });
+  }
+
+  return date.toLocaleTimeString([], { hour: "numeric" });
 }
 
 function smoothPath(points: ChartPoint[]): string {
@@ -451,6 +476,7 @@ export default function App() {
   const [feeds, setFeeds] = useState<FeedState>(buildInitialFeeds);
   const [luxPoints, setLuxPoints] = useState<HistoryPoint[]>([]);
   const [soilPoints, setSoilPoints] = useState<HistoryPoint[]>([]);
+  const [chartMode, setChartMode] = useState<ChartMode>("12h");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [luxError, setLuxError] = useState<string | null>(null);
@@ -477,7 +503,7 @@ export default function App() {
     }
 
     try {
-      const luxHistory = await fetchDayHistory("/api/feeds/lux/day", "Lux");
+      const luxHistory = await fetchDayHistory("/api/feeds/lux/day", "Lux", chartMode);
       setLuxPoints(luxHistory);
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Lux history failed";
@@ -485,7 +511,7 @@ export default function App() {
     }
 
     try {
-      const soilHistory = await fetchDayHistory("/api/feeds/soil-percent/day", "Soil moisture");
+      const soilHistory = await fetchDayHistory("/api/feeds/soil-percent/day", "Soil moisture", chartMode);
       setSoilPoints(soilHistory);
     } catch (fetchError) {
       const message = fetchError instanceof Error ? fetchError.message : "Soil moisture history failed";
@@ -493,7 +519,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [chartMode]);
 
   useEffect(() => {
     refresh();
@@ -572,34 +598,44 @@ export default function App() {
       </div>
 
       <div className="charts-layout">
+        <div className="chart-mode-row" aria-label="Chart range">
+          <button className={chartMode === "12h" ? "mode-button active" : "mode-button"} type="button" onClick={() => setChartMode("12h")}>
+            12h
+          </button>
+          <button className={chartMode === "month" ? "mode-button active" : "mode-button"} type="button" onClick={() => setChartMode("month")}>
+            Month
+          </button>
+        </div>
         <DayLineChart
-          ariaLabel="Line chart of today's lux readings"
+          ariaLabel={chartMode === "month" ? "Line chart of daily average lux readings for the last month" : "Line chart of lux readings for the last 12 hours"}
           averageLabel="Avg"
-          emptyText="No lux samples today"
+          emptyText={chartMode === "month" ? "No lux samples this month" : "No lux samples in the last 12 hours"}
           error={luxError}
           fillId="lux-fill"
           formatValue={formatLux}
-          heading="Lux Through The Day"
+          heading={chartMode === "month" ? "Daily Average Lux" : "Lux Last 12 Hours"}
           areaDivisor={1000}
+          mode={chartMode}
           points={luxPoints}
           statLabel="klux-h"
           strokeClass="sun-chart"
-          subheading="Sunlight Today"
+          subheading={chartMode === "month" ? "Sunlight Month" : "Sunlight Window"}
           unit=" lux"
         />
         <DayLineChart
-          ariaLabel="Line chart of today's soil moisture percentage readings"
+          ariaLabel={chartMode === "month" ? "Line chart of daily average soil moisture percentage readings for the last month" : "Line chart of soil moisture percentage readings for the last 12 hours"}
           averageLabel="Avg"
-          emptyText="No soil moisture samples today"
+          emptyText={chartMode === "month" ? "No soil moisture samples this month" : "No soil moisture samples in the last 12 hours"}
           error={soilError}
           fillId="soil-fill"
           formatValue={(value) => formatFixed(value, 0)}
-          heading="Soil Moisture Through The Day"
+          heading={chartMode === "month" ? "Daily Average Soil Moisture" : "Soil Moisture Last 12 Hours"}
           areaDivisor={1}
+          mode={chartMode}
           points={soilPoints}
           statLabel="%-h"
           strokeClass="soil-chart"
-          subheading="Soil Today"
+          subheading={chartMode === "month" ? "Soil Month" : "Soil Window"}
           unit="%"
         />
       </div>
