@@ -67,6 +67,7 @@ const EMPTY_FEED: FeedData = {
 
 const POLL_INTERVAL_MS = 30000;
 const FRESH_MS = 3 * 60 * 1000;
+const FEED_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
 const MARQUEE_TEXT = "  GARDEN NODE ONLINE  *  SUNLIGHT SENSOR ONLINE  *  PLANTS ARE BEING OBSERVED  *  ";
 
 function buildInitialFeeds(): FeedState {
@@ -105,6 +106,18 @@ function newestTimestamp(feeds: FeedState): string | null {
     .map((feed) => feeds[feed].updatedAt)
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+}
+
+function formatCountdown(ms: number | null): string {
+  if (ms === null) {
+    return "--:--";
+  }
+
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 async function fetchLatestFeeds(): Promise<FeedState> {
@@ -545,11 +558,19 @@ export default function App() {
 
   const tempC = toCelsius(feeds.temperature.value);
   const ioConnected = !error;
+  const latestFeedTimestamp = useMemo(() => newestTimestamp(feeds), [feeds]);
 
   const lastSeen = useMemo(() => {
-    const latest = newestTimestamp(feeds);
-    return latest ? new Date(latest).toLocaleString() : "No feed data";
-  }, [feeds]);
+    return latestFeedTimestamp ? new Date(latestFeedTimestamp).toLocaleString() : "No feed data";
+  }, [latestFeedTimestamp]);
+
+  const nextFeedMs = latestFeedTimestamp
+    ? new Date(latestFeedTimestamp).getTime() + FEED_UPDATE_INTERVAL_MS
+    : null;
+  const countdownMs = nextFeedMs === null ? null : nextFeedMs - now;
+  const countdownDetail = nextFeedMs === null
+    ? "Waiting for feed data"
+    : `Expected around ${new Date(nextFeedMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 
   return (
     <main className="app">
@@ -604,6 +625,12 @@ export default function App() {
             label="Telemetry"
             value={error ? "Error" : "Connected"}
             detail={error ?? `Last feed ${lastSeen}`}
+          />
+          <Metric
+            icon={<RefreshCw size={19} />}
+            label="Next Wake"
+            value={formatCountdown(countdownMs)}
+            detail={countdownDetail}
           />
         </section>
       </div>
