@@ -591,6 +591,12 @@ export default function App() {
 
         <section className="metrics-grid" aria-label="Latest feed values">
           <Metric
+            icon={<RefreshCw size={19} />}
+            label="Next Wake"
+            value={formatCountdown(countdownMs)}
+            detail={countdownDetail}
+          />
+          <Metric
             icon={<Thermometer size={19} />}
             label="Temperature"
             value={`${formatFixed(feeds.temperature.value, 1)} F`}
@@ -625,12 +631,6 @@ export default function App() {
             label="Telemetry"
             value={error ? "Error" : "Connected"}
             detail={error ?? `Last feed ${lastSeen}`}
-          />
-          <Metric
-            icon={<RefreshCw size={19} />}
-            label="Next Wake"
-            value={formatCountdown(countdownMs)}
-            detail={countdownDetail}
           />
         </section>
       </div>
