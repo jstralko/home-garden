@@ -12,6 +12,7 @@ void initDisplay();
 // Screens
 void bootScreen();
 void drawStaticDashboard();
+void refreshDashboard();
 void setDisplayPower(bool on);
 void sleepDisplay();
 

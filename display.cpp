@@ -1,5 +1,7 @@
 #include "display.h"
+
 #include "sensors.h"
+#include "telemetry.h"
 #include "config.h"
 
 #include <SPI.h>
@@ -72,6 +74,20 @@ void drawStaticDashboard() {
         240,
         ST77XX_WHITE
     );
+}
+
+void refreshDashboard() {
+  drawTemperature(currentTempF, currentTempC);
+  drawBatteryInfo(batteryVoltage, batteryPercent);
+  drawLux(lux);
+  drawSoil(soilRaw, soilVoltage, soilPercent);
+  drawStatusBar(
+      bmeFound,
+      vemlFound,
+      soilFound,
+      fuelGaugeFound,
+      wifiConnected,
+      ioConnected);
 }
 
 void drawStatusBar(
