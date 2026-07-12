@@ -37,7 +37,21 @@ type DayHistoryResponse = {
   mode: ChartMode;
 };
 
-type ChartMode = "12h" | "month";
+type ChartMode = "12h" | "24h" | "week" | "month";
+
+const CHART_MODE_LABELS: Record<ChartMode, string> = {
+  "12h": "12h",
+  "24h": "24h",
+  week: "Weekly",
+  month: "Month"
+};
+
+const CHART_RANGE_LABELS: Record<ChartMode, string> = {
+  "12h": "12 hours",
+  "24h": "24 hours",
+  week: "week",
+  month: "month"
+};
 
 type ChartPoint = {
   x: number;
@@ -136,10 +150,18 @@ function historyRange(mode: ChartMode): { start: Date; end: Date } {
   const end = new Date();
   const start = new Date(end);
 
-  if (mode === "month") {
-    start.setDate(end.getDate() - 30);
-  } else {
-    start.setHours(end.getHours() - 12);
+  switch (mode) {
+    case "month":
+      start.setDate(end.getDate() - 30);
+      break;
+    case "week":
+      start.setDate(end.getDate() - 7);
+      break;
+    case "24h":
+      start.setHours(end.getHours() - 24);
+      break;
+    default:
+      start.setHours(end.getHours() - 12);
   }
 
   return { start, end };
@@ -432,6 +454,10 @@ function formatPointLabel(time: number, mode: ChartMode): string {
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
   }
 
+  if (mode === "week") {
+    return date.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  }
+
   return date.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit"
@@ -439,7 +465,7 @@ function formatPointLabel(time: number, mode: ChartMode): string {
 }
 
 function formatTickLabel(date: Date, mode: ChartMode): string {
-  if (mode === "month") {
+  if (mode === "month" || mode === "week") {
     return date.toLocaleDateString([], { month: "numeric", day: "numeric" });
   }
 
@@ -637,21 +663,25 @@ export default function App() {
 
       <div className="charts-layout">
         <div className="chart-mode-row" aria-label="Chart range">
-          <button className={chartMode === "12h" ? "mode-button active" : "mode-button"} type="button" onClick={() => setChartMode("12h")}>
-            12h
-          </button>
-          <button className={chartMode === "month" ? "mode-button active" : "mode-button"} type="button" onClick={() => setChartMode("month")}>
-            Month
-          </button>
+          {(Object.keys(CHART_MODE_LABELS) as ChartMode[]).map((mode) => (
+            <button
+              className={chartMode === mode ? "mode-button active" : "mode-button"}
+              key={mode}
+              type="button"
+              onClick={() => setChartMode(mode)}
+            >
+              {CHART_MODE_LABELS[mode]}
+            </button>
+          ))}
         </div>
         <DayLineChart
-          ariaLabel={chartMode === "month" ? "Line chart of daily average lux readings for the last month" : "Line chart of lux readings for the last 12 hours"}
+          ariaLabel={`Line chart of ${chartMode === "month" ? "daily average " : ""}lux readings for the last ${CHART_RANGE_LABELS[chartMode]}`}
           averageLabel="Avg"
-          emptyText={chartMode === "month" ? "No lux samples this month" : "No lux samples in the last 12 hours"}
+          emptyText={`No lux samples for the last ${CHART_RANGE_LABELS[chartMode]}`}
           error={luxError}
           fillId="lux-fill"
           formatValue={formatLux}
-          heading={chartMode === "month" ? "Daily Average Lux" : "Lux Last 12 Hours"}
+          heading={chartMode === "month" ? "Daily Average Lux" : `Lux Last ${CHART_RANGE_LABELS[chartMode]}`}
           areaDivisor={1000}
           mode={chartMode}
           points={luxPoints}
@@ -661,13 +691,13 @@ export default function App() {
           unit=" lux"
         />
         <DayLineChart
-          ariaLabel={chartMode === "month" ? "Line chart of daily average soil moisture percentage readings for the last month" : "Line chart of soil moisture percentage readings for the last 12 hours"}
+          ariaLabel={`Line chart of ${chartMode === "month" ? "daily average " : ""}soil moisture readings for the last ${CHART_RANGE_LABELS[chartMode]}`}
           averageLabel="Avg"
-          emptyText={chartMode === "month" ? "No soil moisture samples this month" : "No soil moisture samples in the last 12 hours"}
+          emptyText={`No soil moisture samples for the last ${CHART_RANGE_LABELS[chartMode]}`}
           error={soilError}
           fillId="soil-fill"
           formatValue={(value) => formatFixed(value, 0)}
-          heading={chartMode === "month" ? "Daily Average Soil Moisture" : "Soil Moisture Last 12 Hours"}
+          heading={chartMode === "month" ? "Daily Average Soil Moisture" : `Soil Moisture Last ${CHART_RANGE_LABELS[chartMode]}`}
           areaDivisor={1}
           mode={chartMode}
           points={soilPoints}
@@ -677,13 +707,13 @@ export default function App() {
           unit="%"
         />
         <DayLineChart
-          ariaLabel={chartMode === "month" ? "Line chart of daily average temperature readings for the last month" : "Line chart of temperature readings for the last 12 hours"}
+          ariaLabel={`Line chart of ${chartMode === "month" ? "daily average " : ""}temperature readings for the last ${CHART_RANGE_LABELS[chartMode]}`}
           averageLabel="Avg"
-          emptyText={chartMode === "month" ? "No temperature samples this month" : "No temperature samples in the last 12 hours"}
+          emptyText={`No temperature samples for the last ${CHART_RANGE_LABELS[chartMode]}`}
           error={temperatureError}
           fillId="temperature-fill"
           formatValue={(value) => formatFixed(value, 1)}
-          heading={chartMode === "month" ? "Daily Average Temperature" : "Temperature Last 12 Hours"}
+          heading={chartMode === "month" ? "Daily Average Temperature" : `Temperature Last ${CHART_RANGE_LABELS[chartMode]}`}
           areaDivisor={1}
           mode={chartMode}
           points={temperaturePoints}

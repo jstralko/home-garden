@@ -400,11 +400,12 @@ func parseTimeRange(r *http.Request) (time.Time, time.Time, error) {
 
 func readHistoryMode(r *http.Request) string {
 	mode := strings.TrimSpace(r.URL.Query().Get("mode"))
-	if mode == "month" {
-		return "month"
+	switch mode {
+	case "24h", "week", "month":
+		return mode
+	default:
+		return "12h"
 	}
-
-	return "12h"
 }
 
 func aggregateDaily(points []luxPoint, start time.Time, end time.Time) []luxPoint {
